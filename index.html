@@ -1,0 +1,1247 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="겸재 정선의 「인왕제색도」를 수묵 셰이더로 재현한 1인칭 3D 산행">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>인왕제색도</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Nanum+Brush+Script&family=Song+Myung&display=swap">
+<style>
+/* Layout: full-bleed ink-wash mountain; HUD as hanji notes pinned to the corners, red seal as the only accent. Single paper theme by design. */
+:root{
+  --paper:#efe6d2;--paper-2:#f6f0e2;--panel:rgba(246,240,226,.95);--panel-soft:rgba(246,240,226,.86);
+  --ink:#1d1b17;--ink-2:#4a463e;--ink-dim:rgba(29,27,23,.58);--line:rgba(29,27,23,.28);
+  --seal:#b3312a;--seal-dk:#8a2520;--wash:#8a8170;--mount:#6b5a3a;--silk:#d9cfb4;--silk-band:#6f8c86;
+  --f-brush:'Nanum Brush Script','Gowun Batang',cursive;
+  --f-body:'Gowun Batang','Noto Serif KR','Apple SD Gothic Neo',serif;
+  --f-han:'Song Myung','Noto Serif KR','Gowun Batang',serif;
+  color-scheme:light;
+}
+html,body{height:100%;background:var(--paper);color:var(--ink);overflow:hidden;font-family:var(--f-body);word-break:keep-all}
+#game{position:fixed;inset:0;overflow:hidden;background:var(--paper)}
+#cv{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+button{font-family:var(--f-body);cursor:pointer;color:var(--ink)}
+button:focus-visible{outline:2px solid var(--seal);outline-offset:2px}
+kbd{display:inline-block;min-width:1.7em;padding:0 6px;border:1px solid var(--line);border-radius:3px;background:rgba(29,27,23,.06);font-family:var(--f-body);font-size:.85em;text-align:center}
+.seal{display:inline-grid;place-items:center;background:var(--seal);color:#f8eee0;font-family:var(--f-han);border-radius:3px;line-height:1}
+
+#hud{position:absolute;inset:0;pointer-events:none}
+#quest{position:absolute;left:16px;top:calc(16px + env(safe-area-inset-top,0px));width:min(270px,calc(100% - 32px));background:var(--panel-soft);border:1px solid var(--line);border-radius:3px;padding:10px 14px 12px;box-shadow:0 2px 12px rgba(40,30,10,.12)}
+#quest .qt{display:flex;align-items:center;gap:8px;font-family:var(--f-brush);font-size:25px;line-height:1}
+#quest .qt .seal{width:20px;height:20px;font-size:11px}
+#questText{font-size:13.5px;line-height:1.6;margin-top:6px;text-wrap:pretty}
+#sights{display:flex;gap:7px;margin-top:9px;align-items:center}
+.dot{width:16px;height:16px;border-radius:50%;border:1.5px dashed var(--ink-dim)}
+.dot.have{border:1.5px solid var(--ink);background:var(--ink-2)}
+.dot.given{border:1.5px solid var(--seal);background:var(--seal)}
+#sightCount{font-size:12px;color:var(--ink-dim);margin-left:4px;font-variant-numeric:tabular-nums}
+#topbtns{position:absolute;right:16px;top:calc(16px + env(safe-area-inset-top,0px));display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;pointer-events:auto;max-width:calc(100% - 310px)}
+#topbtns button{background:var(--panel-soft);border:1px solid var(--line);border-radius:3px;padding:6px 10px;font-size:12.5px;white-space:nowrap}
+#topbtns button[aria-pressed="false"]{color:var(--ink-dim)}
+#cross{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;border:1.5px solid rgba(29,27,23,.55)}
+#prompt{position:absolute;left:50%;top:calc(50% + 34px);transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:6px 12px;font-size:14px;white-space:nowrap;display:flex;gap:8px;align-items:center}
+#toast{position:absolute;left:50%;top:calc(84px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;width:min(540px,calc(100% - 32px))}
+.toastItem{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:6px 16px;font-size:15px;text-align:center;animation:tin .35s ease-out;box-shadow:0 2px 10px rgba(40,30,10,.12)}
+.toastItem b{font-family:var(--f-brush);font-weight:400;font-size:23px;color:var(--seal);margin-right:6px}
+@keyframes tin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+#lockHint{position:absolute;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font-size:13px;color:var(--ink-2);background:var(--panel-soft);padding:5px 12px;border-radius:3px;white-space:nowrap}
+#caption{position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font-family:var(--f-brush);font-size:32px;color:var(--ink);text-shadow:0 0 10px var(--paper),0 0 4px var(--paper);opacity:0;transition:opacity 1.2s;white-space:nowrap}
+#bubbles{position:absolute;inset:0;overflow:hidden}
+.bub{position:absolute;left:0;top:0;background:var(--paper-2);color:var(--ink);border:1px solid var(--line);font-size:13px;line-height:1.35;padding:4px 10px 5px;border-radius:12px;white-space:nowrap;box-shadow:0 2px 8px rgba(40,30,10,.18);opacity:0;transition:opacity .35s;will-change:transform}
+.bub::after{content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;border-width:5px 5px 0;border-style:solid;border-color:var(--paper-2) transparent transparent}
+.bub.on{opacity:1}
+#flash{position:absolute;inset:0;background:#fffaf0;opacity:0;pointer-events:none}
+#flash.go{animation:flash .7s ease-out}
+@keyframes flash{0%{opacity:.85}100%{opacity:0}}
+
+#dialog{position:absolute;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(680px,calc(100% - 32px));background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:14px 20px;box-shadow:0 10px 36px rgba(40,30,10,.22)}
+#dName{font-family:var(--f-brush);font-size:31px;line-height:1}
+#dRole{font-size:12px;color:var(--ink-dim);margin-left:8px;letter-spacing:.04em}
+#dText{font-size:17px;line-height:1.75;margin-top:8px;min-height:3.5em;text-wrap:pretty}
+#dChoices{display:flex;flex-direction:column;gap:3px;margin-top:10px}
+#dChoices button{display:flex;gap:10px;align-items:baseline;text-align:left;background:transparent;border:1px solid transparent;font-size:15.5px;padding:6px 10px;border-radius:3px}
+#dChoices button:hover,#dChoices button:focus-visible{background:rgba(179,49,42,.08);border-color:rgba(179,49,42,.35)}
+#dChoices button span{color:var(--seal);font-variant-numeric:tabular-nums}
+#dNext{text-align:right;font-size:12.5px;color:var(--ink-dim);margin-top:4px}
+
+#start{position:absolute;inset:0;display:flex;align-items:center;padding-inline:clamp(16px,6vw,88px);padding-block:calc(24px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-bottom,0px));background:linear-gradient(90deg,rgba(239,230,210,.96) 0%,rgba(239,230,210,.82) 38%,rgba(239,230,210,0) 74%);overflow:auto}
+#start .inner{display:flex;gap:26px;align-items:flex-start;max-width:600px;min-width:0}
+.vcol{flex:none;display:flex;flex-direction:column;align-items:center;gap:14px}
+.vtitle{writing-mode:vertical-rl;font-family:var(--f-han);font-size:clamp(40px,6.4vw,62px);letter-spacing:.1em;line-height:1.2;white-space:nowrap}
+.vcol .seal{width:44px;height:44px;font-size:16px;padding:4px;text-align:center;line-height:1.05}
+#start .txt{min-width:0}
+.eyebrow{font-size:12px;letter-spacing:.3em;color:var(--ink-dim)}
+#start h1{font-family:var(--f-brush);font-weight:400;font-size:clamp(60px,10vw,104px);line-height:.95;margin:8px 0 6px}
+#start p.lede{font-size:16.5px;line-height:1.8;margin:0 0 18px;text-wrap:pretty}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:14px;align-items:center;margin:0 0 22px}
+.keys dt{white-space:nowrap}
+.keys dd{margin:0;color:var(--ink-2)}
+#go{background:var(--ink);color:var(--paper);border:0;border-radius:3px;font-family:var(--f-brush);font-size:30px;padding:8px 26px 6px}
+#go:hover{background:#000}
+#go[disabled]{opacity:.55;cursor:wait}
+.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line);border-radius:3px;padding:7px 14px;font-size:14px;margin-left:10px;vertical-align:middle}
+.credit{font-size:12px;color:var(--ink-dim);margin-top:20px;line-height:1.6}
+@media (max-width:640px){
+  #start{align-items:flex-end;background:linear-gradient(0deg,rgba(239,230,210,.97) 0%,rgba(239,230,210,.88) 60%,rgba(239,230,210,.1) 100%)}
+  .vcol{display:none}
+  #topbtns{max-width:calc(100% - 32px);top:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+  #toast{top:calc(150px + env(safe-area-inset-top,0px))}
+  #dText{font-size:15.5px}
+}
+
+#finale{position:absolute;inset:0;display:flex;background:rgba(239,230,210,.75);padding:16px;overflow:auto}
+#finale .card{margin:auto;display:flex;gap:26px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:1000px;animation:tin .8s ease-out}
+.scroll{background:var(--silk);padding:18px 14px 20px;border-top:12px solid var(--mount);border-bottom:16px solid var(--mount);box-shadow:0 18px 50px rgba(40,30,10,.35);max-width:100%}
+.scroll .band{border:6px solid var(--silk-band);padding:10px;background:var(--silk)}
+#finaleCv{display:block;width:min(500px,78vw);height:auto;aspect-ratio:600/350;max-width:100%}
+#finale .txt{max-width:330px;min-width:0}
+#finale h2{font-family:var(--f-brush);font-weight:400;font-size:54px;line-height:1;margin:6px 0 10px}
+#finale p{font-size:15.5px;line-height:1.8;margin:0 0 16px}
+#finale button{background:var(--ink);color:var(--paper);border:0;border-radius:3px;font-family:var(--f-brush);font-size:26px;padding:6px 22px 4px}
+
+#help{position:absolute;right:16px;top:calc(60px + env(safe-area-inset-top,0px));width:min(310px,calc(100% - 32px));background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:12px 16px;font-size:13.5px;line-height:1.6;pointer-events:auto}
+#help h3{font-family:var(--f-brush);font-weight:400;font-size:25px;margin:0 0 6px}
+#help .keys{margin:0;font-size:13px}
+
+#journal,#photoView{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(60,50,30,.25)}
+.jp{width:min(880px,100%);height:min(650px,100%);display:flex;flex-direction:column;background:var(--paper-2);border:1px solid var(--line);border-radius:3px;overflow:hidden;min-width:0;box-shadow:0 18px 50px rgba(40,30,10,.3)}
+.jhead{display:flex;align-items:baseline;gap:12px;padding:14px 18px 8px;flex-wrap:wrap}
+.jtitle{font-family:var(--f-brush);font-size:35px;line-height:1}
+#jProgress{font-size:13px;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+.jbtn{background:transparent;border:1px solid var(--line);border-radius:3px;padding:5px 10px;font-size:13px}
+.jbtn:hover{background:rgba(29,27,23,.06)}
+#jClose{margin-left:auto}
+.jtabs{display:flex;gap:2px;padding:0 10px;border-bottom:1px solid var(--line);overflow-x:auto;flex:none}
+.jtabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--ink-dim);font-size:15px;padding:8px 12px 7px;white-space:nowrap}
+.jtabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--seal)}
+#jBody{flex:1;overflow:auto;padding:16px 18px 20px;min-height:0;font-size:14.5px;line-height:1.7}
+#jBody h4{font-family:var(--f-brush);font-weight:400;font-size:27px;margin:0 0 2px;line-height:1.1}
+#jBody p{margin:6px 0 0;max-width:64ch}
+#jBody .sub{font-size:12.5px;color:var(--ink-dim)}
+.jsec{padding-bottom:16px;margin-bottom:16px;border-bottom:1px dashed var(--line)}
+.jsec:last-child{border-bottom:0;margin-bottom:0}
+.check{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 18px}
+.check li{display:flex;gap:9px;align-items:center;color:var(--ink-dim);min-width:0}
+.check li.on{color:var(--ink)}
+.box{flex:none;width:16px;height:16px;border:1.5px solid var(--ink-dim);border-radius:3px;display:grid;place-items:center;font-size:11px;line-height:1;color:#f8eee0}
+.check li.on .box{background:var(--seal);border-color:var(--seal)}
+.mapwrap{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+#mapCv{width:min(380px,100%);height:auto;aspect-ratio:460/560;border-radius:3px;border:1px solid var(--line)}
+.legend{flex:1;min-width:200px;display:flex;flex-direction:column;gap:9px;font-size:13.5px}
+.legend div{display:flex;gap:10px;align-items:center}
+.lg{flex:none;width:18px;height:18px;display:grid;place-items:center;font-size:11px;font-weight:700;border-radius:50%}
+.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.pc{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid var(--line);border-radius:3px;min-width:0}
+.pc.no{opacity:.45}
+.av{flex:none;width:34px;height:34px;border-radius:50%;border:1.5px solid var(--line)}
+.pc b{display:block;font-size:15px}
+.pc i{display:block;font-style:normal;font-size:12px;color:var(--ink-dim)}
+.pc q{display:block;font-size:12.5px;margin-top:3px;color:var(--seal-dk)}
+.story{padding:12px 0;border-bottom:1px dashed var(--line)}
+.story:first-child{padding-top:0}.story:last-child{border-bottom:0}
+.story.no h4{color:var(--ink-dim)}
+.sketches{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}
+.sk{background:none;border:0;padding:0;text-align:left}
+.sk img,#pvImg{display:block;width:100%;height:auto;border:7px solid var(--silk);outline:3px solid var(--silk-band);outline-offset:-10px;box-shadow:0 6px 18px rgba(40,30,10,.25)}
+.sk span{display:block;font-size:12.5px;color:var(--ink-dim);margin-top:6px}
+.empty{color:var(--ink-dim)}
+#photoView .pv{width:min(780px,100%);display:flex;flex-direction:column;gap:12px}
+#pvImg{border-width:16px}
+.pvbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--panel);padding:8px 12px;border-radius:3px}
+#pvCap{font-family:var(--f-brush);font-size:28px;margin-right:auto}
+
+#touch{position:absolute;inset:0;pointer-events:none}
+#joy{position:absolute;left:24px;bottom:calc(28px + env(safe-area-inset-bottom,0px));width:124px;height:124px;border-radius:50%;border:1.5px solid rgba(29,27,23,.35);background:rgba(246,240,226,.45);pointer-events:auto;touch-action:none}
+#knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(29,27,23,.5);border:1.5px solid var(--ink)}
+#tAct{position:absolute;right:24px;bottom:calc(40px + env(safe-area-inset-bottom,0px));width:78px;height:78px;border-radius:50%;border:2px solid var(--seal);background:rgba(246,240,226,.6);font-size:14px;pointer-events:auto;touch-action:none;line-height:1.2;padding:4px}
+#tAct.ready{background:var(--seal);color:#f8eee0}
+@media (prefers-reduced-motion:reduce){.toastItem,#finale .card{animation:none}#caption{transition:none}#flash.go{animation:none}}
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="cv" aria-label="인왕제색도 3D 산수"></canvas>
+
+  <div id="hud" hidden>
+    <div id="bubbles"></div>
+    <div id="flash"></div>
+    <div id="quest">
+      <div class="qt"><span class="seal">霽</span><span id="qTitle">비 갠 산을 그리다</span></div>
+      <div id="questText"></div>
+      <div id="sights"></div>
+    </div>
+    <div id="topbtns">
+      <button id="bJournal">수첩</button>
+      <button id="bSketch">스케치</button>
+      <button id="bMusic" aria-pressed="true">♪ 가야금</button>
+      <button id="bFilter" aria-pressed="true">수묵</button>
+      <button id="bQual">화질: 보통</button>
+      <button id="bHelp" aria-pressed="false">조작법</button>
+    </div>
+    <div id="cross"></div>
+    <div id="prompt" hidden><kbd>E</kbd><span id="promptText"></span></div>
+    <div id="toast"></div>
+    <div id="caption">그림 속, 바로 그 자리</div>
+    <div id="lockHint" hidden>화면을 클릭하면 마우스로 둘러볼 수 있어요 · 끌어서 둘러보기도 됩니다</div>
+    <div id="help" hidden>
+      <h3>조작법</h3>
+      <dl class="keys">
+        <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>걷기 (방향키도 됩니다)</dd>
+        <dt><kbd>Shift</kbd></dt><dd>달리기</dd>
+        <dt>마우스</dt><dd>둘러보기 (클릭해서 고정, Esc로 해제)</dd>
+        <dt><kbd>E</kbd></dt><dd>말 걸기 · 살펴보기</dd>
+        <dt><kbd>1</kbd>~<kbd>4</kbd></dt><dd>대화 선택지 고르기</dd>
+        <dt><kbd>J</kbd> <kbd>Tab</kbd></dt><dd>수첩 · 지도 열기</dd>
+        <dt><kbd>C</kbd></dt><dd>지금 장면을 스케치북에 담기</dd>
+        <dt><kbd>P</kbd></dt><dd>수묵 효과 켜고 끄기</dd>
+        <dt><kbd>M</kbd></dt><dd>음악 켜고 끄기</dd>
+      </dl>
+      <p class="sub" style="margin:8px 0 0;color:var(--ink-dim)">흙길(산길)에서는 가파른 돌계단도 오를 수 있어요. 길을 벗어난 급한 바위는 오를 수 없습니다.</p>
+    </div>
+  </div>
+
+  <div id="touch" hidden>
+    <div id="joy"><div id="knob"></div></div>
+    <button id="tAct">말 걸기</button>
+  </div>
+
+  <div id="dialog" hidden role="dialog" aria-live="polite">
+    <div><span id="dName"></span><span id="dRole"></span></div>
+    <div id="dText"></div>
+    <div id="dChoices"></div>
+    <div id="dNext">E 또는 클릭으로 계속 ▸</div>
+  </div>
+
+  <div id="journal" hidden role="dialog" aria-label="산행 수첩">
+    <div class="jp">
+      <div class="jhead"><div class="jtitle">산행 수첩</div><div id="jProgress"></div><button class="jbtn" id="jClose">닫기</button></div>
+      <div class="jtabs" role="tablist">
+        <button role="tab" data-tab="quest">의뢰</button><button role="tab" data-tab="map">지도</button><button role="tab" data-tab="people">만난 사람들</button><button role="tab" data-tab="story">그림 이야기</button><button role="tab" data-tab="sketch">스케치북</button>
+      </div>
+      <div id="jBody"></div>
+    </div>
+  </div>
+  <div id="photoView" hidden role="dialog" aria-label="스케치 보기">
+    <div class="pv"><img id="pvImg" alt=""><div class="pvbar"><div id="pvCap"></div><button class="jbtn" id="pvDel">스케치북에서 지우기</button><button class="jbtn" id="pvClose">닫기</button></div></div>
+  </div>
+
+  <div id="finale" hidden>
+    <div class="card">
+      <div class="scroll"><div class="band"><canvas id="finaleCv" width="600" height="350"></canvas></div></div>
+      <div class="txt">
+        <div class="eyebrow">辛未 閏月 · 1751</div>
+        <h2>산이 개었다</h2>
+        <p>다섯 경치가 모두 화폭에 올랐습니다. 비에 젖어 검게 빛나는 바위, 산허리를 감싸는 흰 안개, 숲속의 기와집. 안개는 칠하지 않고 비워 두는 것으로 그렸어요.</p>
+        <p>이제 이 그림을 기와집 사랑채의 벗에게 가져다주세요. 산은 그대로 열려 있으니 더 걸어도 좋습니다.</p>
+        <button id="finaleBtn">그림을 들고 내려가기</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="start">
+    <div class="inner">
+      <div class="vcol" aria-hidden="true"><div class="vtitle">仁王霽色圖</div><span class="seal">謙<br>齋</span></div>
+      <div class="txt">
+        <div class="eyebrow">仁王山 · 1751</div>
+        <h1>인왕제색도</h1>
+        <p class="lede">사흘 내린 장맛비가 막 그친 인왕산. 산허리를 감싼 안개 속으로 걸어 들어가, 노화가가 그리지 못한 다섯 경치를 눈에 담아 오세요. 경치를 하나 찾을 때마다 안개가 조금씩 걷힙니다.</p>
+        <dl class="keys" id="startKeys">
+          <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>걷기 · <kbd>Shift</kbd> 달리기</dd>
+          <dt>마우스</dt><dd>둘러보기</dd>
+          <dt><kbd>E</kbd></dt><dd>말 걸기 · 살펴보기</dd>
+          <dt><kbd>J</kbd> <kbd>C</kbd></dt><dd>수첩과 지도 · 장면을 스케치북에 담기</dd>
+          <dt><kbd>P</kbd></dt><dd>수묵 효과 켜고 끄기</dd>
+        </dl>
+        <button id="go" disabled>먹을 가는 중…</button><button id="restart" class="ghost" hidden>처음부터 다시</button>
+        <div class="credit">겸재 정선의 「인왕제색도」(1751)를 바탕으로 만든 3D 습작입니다. 산의 모양과 명소 위치는 실제 지형이 아니라 그림의 인상을 따라 다시 지었어요. 소리는 버튼을 누른 뒤부터 나옵니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const T=THREE;
+const $=id=>document.getElementById(id);
+const IS_TOUCH=(window.matchMedia&&matchMedia('(pointer: coarse)').matches)||('ontouchstart' in window&&navigator.maxTouchPoints>0);
+/* ---- TERRAIN MODULE (shared by game and node test) ---- */
+let _s = 1751;
+function rnd(){ _s|=0; _s=_s+0x6D2B79F5|0; let t=Math.imul(_s^_s>>>15,1|_s); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }
+const rr=(a,b)=>a+(b-a)*rnd();
+const pick=a=>a[Math.floor(rnd()*a.length)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const sstep=(a,b,v)=>{const t=clamp((v-a)/(b-a),0,1);return t*t*(3-2*t);};
+const perm=new Uint8Array(512);
+(function(){const p=[];for(let i=0;i<256;i++)p[i]=i;for(let i=255;i>0;i--){const j=Math.floor(rnd()*(i+1));const k=p[i];p[i]=p[j];p[j]=k;}for(let i=0;i<512;i++)perm[i]=p[i&255];})();
+function vn(x,y){const X=Math.floor(x),Y=Math.floor(y);const xi=X&255,yi=Y&255,xf=x-X,yf=y-Y;const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+  const a=perm[perm[xi]+yi]/255,b=perm[perm[xi+1]+yi]/255,c=perm[perm[xi]+yi+1]/255,d=perm[perm[xi+1]+yi+1]/255;return lerp(lerp(a,b,u),lerp(c,d,u),v);}
+function fbm(x,y){return vn(x,y)*.55+vn(x*2.03+5.2,y*2.03+1.3)*.28+vn(x*4.1+9.1,y*4.1+3.3)*.17;}
+function g2(x,z,cx,cz,sx,sz){const dx=(x-cx)/sx,dz=(z-cz)/sz;return Math.exp(-.5*(dx*dx+dz*dz));}
+const DOME={x:0,z:-150,ax:64,az:54,H:78};
+function domeH(x,z){const back=z<DOME.z;const az=back?DOME.az*1.9:DOME.az;const dx=(x-DOME.x)/DOME.ax,dz=(z-DOME.z)/az,d2=dx*dx+dz*dz;if(d2>=1)return 0;
+  const k=back?lerp(.5,2.2,clamp(-dz*2,0,1)):.5; // steep granite front face, long gentle back slope
+  return DOME.H*Math.pow(1-d2,k);}
+function domeMask(x,z){const dx=(x-DOME.x)/DOME.ax,dz=(z-DOME.z)/DOME.az;return clamp((1-(dx*dx+dz*dz))*3,0,1);}
+function terrainH(x,z){
+  let h=domeH(x,z);
+  h+=50*g2(x,z,0,-160,70,60);
+  h+=46*g2(x,z,-118,-122,26,32)+30*g2(x,z,-86,-70,24,22)+18*g2(x,z,-150,-60,30,30);
+  h+=44*g2(x,z,96,-128,28,38)+24*g2(x,z,82,-68,28,26)+14*g2(x,z,130,-40,30,30);
+  h+=58*g2(x,z,10,-268,150,40);
+  const base=h;
+  const m=sstep(4,40,base);
+  const n=fbm(x*.011+3,z*.011+7);
+  const r=1-Math.abs(vn(x*.022,z*.022)*2-1);
+  h+=(n-.5)*42*m+r*13*m;
+  // plain: gentle undulation, slopes down to the east (+z) where the city lies
+  h+=(fbm(x*.02,z*.02)-.5)*3-sstep(70,220,z)*8;
+  return h;
+}
+function slopeAt(x,z){const e=1;const dx=(terrainH(x+e,z)-terrainH(x-e,z))/(2*e),dz=(terrainH(x,z+e)-terrainH(x,z-e))/(2*e);return Math.hypot(dx,dz);}
+const WORLD={x0:-230,x1:230,z0:-330,z1:170};
+/* A* over a 2m grid. Cost grows with slope; anything above maxS is impassable. */
+function findPath(ax,az,bx,bz,maxS,avoid){
+  const C=2,nx=Math.round((WORLD.x1-WORLD.x0)/C)+1,nz=Math.round((WORLD.z1-WORLD.z0)/C)+1;
+  if(!findPath.hg){const hg=new Float32Array(nx*nz);for(let j=0;j<nz;j++)for(let i=0;i<nx;i++)hg[j*nx+i]=terrainH(WORLD.x0+i*C,WORLD.z0+j*C);findPath.hg=hg;}
+  const hg=findPath.hg;
+  const idx=(i,j)=>j*nx+i;
+  const si=Math.round((ax-WORLD.x0)/C),sj=Math.round((az-WORLD.z0)/C),ti=Math.round((bx-WORLD.x0)/C),tj=Math.round((bz-WORLD.z0)/C);
+  const g=new Float32Array(nx*nz).fill(1e30),from=new Int32Array(nx*nz).fill(-1),closed=new Uint8Array(nx*nz);
+  const heap=[];const push=(f,k)=>{heap.push([f,k]);let i=heap.length-1;while(i>0){const p=(i-1)>>1;if(heap[p][0]<=heap[i][0])break;[heap[p],heap[i]]=[heap[i],heap[p]];i=p;}};
+  const pop=()=>{const top=heap[0],last=heap.pop();if(heap.length){heap[0]=last;let i=0;for(;;){const l=i*2+1,r=l+1;let m=i;if(l<heap.length&&heap[l][0]<heap[m][0])m=l;if(r<heap.length&&heap[r][0]<heap[m][0])m=r;if(m===i)break;[heap[m],heap[i]]=[heap[i],heap[m]];i=m;}}return top;};
+  const s=idx(si,sj),t=idx(ti,tj);g[s]=0;push(0,s);
+  const N8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  while(heap.length){const [,k]=pop();if(closed[k])continue;closed[k]=1;if(k===t)break;const i=k%nx,j=(k-i)/nx;
+    for(const [di,dj] of N8){const ii=i+di,jj=j+dj;if(ii<0||jj<0||ii>=nx||jj>=nz)continue;const kk=idx(ii,jj);if(closed[kk])continue;
+      const dist=C*Math.hypot(di,dj);const dh=hg[kk]-hg[k];const sl=Math.abs(dh)/dist;if(sl>maxS)continue;
+      let cost=dist*(1+sl*sl*6);
+      if(avoid){const x=WORLD.x0+ii*C,z=WORLD.z0+jj*C;cost+=avoid(x,z)*dist;}
+      const ng=g[k]+cost;if(ng<g[kk]){g[kk]=ng;from[kk]=k;const hx=Math.hypot(ii-ti,jj-tj)*C;push(ng+hx,kk);}}}
+  if(from[t]<0&&s!==t)return null;
+  const pts=[];for(let k=t;k!==-1;k=from[k]){const i=k%nx,j=(k-i)/nx;pts.push([WORLD.x0+i*C,WORLD.z0+j*C]);if(k===s)break;}
+  pts.reverse();
+  // smooth (chaikin x2) then resample every ~3m
+  let p=pts;for(let it=0;it<2;it++){const q=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];q.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75]);}q.push(p[p.length-1]);p=q;}
+  const out=[p[0]];let acc=0;for(let i=1;i<p.length;i++){acc+=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);if(acc>=3){out.push(p[i]);acc=0;}}
+  const lp=p[p.length-1];if(out[out.length-1]!==lp)out.push(lp);
+  return out;
+}
+/* ---- END TERRAIN MODULE ---- */
+
+
+/* ---------------- Renderer ---------------- */
+const PAPER=0xefe6d2;
+const cv=$('cv');
+const renderer=new T.WebGLRenderer({canvas:cv,antialias:false,powerPreference:'high-performance'});
+renderer.setClearColor(PAPER,1);
+const scene=new T.Scene();
+const camera=new T.PerspectiveCamera(66,1,0.15,1600);
+camera.rotation.order='YXZ';
+const ANISO=Math.min(4,renderer.capabilities.getMaxAnisotropy());
+
+/* ---------------- Ink textures ---------------- */
+function canvasTex(c,rep){const t=new T.CanvasTexture(c);if(rep!==false){t.wrapS=t.wrapT=T.RepeatWrapping;}t.anisotropy=ANISO;return t;}
+function offs(v,L,size){const r=[0];if(v<L)r.push(size);if(v>size-L)r.push(-size);return r;}
+function strokes(g,size,n,cols,o){g.lineCap='round';for(let i=0;i<n;i++){const x=rnd()*size,y=rnd()*size;const a=(o.angle||0)+(rnd()-.5)*2*(o.jit==null?.4:o.jit);
+  const L=rr(o.len[0],o.len[1]),w=rr(o.wid[0],o.wid[1]);g.strokeStyle=pick(cols);g.globalAlpha=rr(o.alpha?o.alpha[0]:.5,o.alpha?o.alpha[1]:.95);g.lineWidth=w;
+  const dx=Math.cos(a)*L/2,dy=Math.sin(a)*L/2,b=rr(-.25,.25);
+  for(const ox of offs(x,L,size))for(const oy of offs(y,L,size)){g.beginPath();g.moveTo(x+ox-dx,y+oy-dy);g.quadraticCurveTo(x+ox-dy*b,y+oy+dx*b,x+ox+dx,y+oy+dy);g.stroke();}}g.globalAlpha=1;}
+function mkCanvas(size,base){const c=document.createElement('canvas');c.width=c.height=size;const g=c.getContext('2d');g.fillStyle=base;g.fillRect(0,0,size,size);return [c,g];}
+function hsl(h,s,l){return 'hsl('+((((h%1)+1)%1)*360).toFixed(1)+','+(clamp(s,0,1)*100).toFixed(1)+'%,'+(clamp(l,0,1)*100).toFixed(1)+'%)';}
+function variants(hex,spread){const c=new T.Color(hex);const o={};c.getHSL(o);const out=[];for(let i=0;i<7;i++)out.push(hsl(o.h+rr(-.03,.03),o.s*rr(.8,1.1),o.l*rr(.72,1.3)));return out;}
+const matCache={};
+function inkMat(hex,o){o=o||{};const key=hex+'|'+JSON.stringify(o);if(matCache[key])return matCache[key];
+  const size=o.size||128;const [c,g]=mkCanvas(size,hex);strokes(g,size,Math.round(size*size/40),o.colors||variants(hex),{angle:o.angle==null?Math.PI/2:o.angle,jit:o.jit,len:[size/22,size/9],wid:[size/80,size/40]});
+  const map=canvasTex(c);let m;
+  if(o.basic)m=new T.MeshBasicMaterial({map,side:o.side||T.FrontSide,transparent:!!o.transparent,opacity:o.opacity==null?1:o.opacity});
+  else m=new T.MeshLambertMaterial({map,side:o.side||T.FrontSide});
+  return matCache[key]=m;}
+// rock: dark granite washed with vertical brush sweeps (the 'heavy ink' of the painting)
+const rockTex=(()=>{const S=512;const [c,g]=mkCanvas(S,'#3e3b36');
+  strokes(g,S,2600,['#1c1a17','#26231f','#2f2c27','#45413a'],{angle:Math.PI/2,jit:.12,len:[40,150],wid:[6,22],alpha:[.35,.85]});
+  strokes(g,S,900,['#77736a','#8c877b','#5d5951'],{angle:Math.PI/2,jit:.1,len:[30,110],wid:[2,7],alpha:[.35,.8]});
+  strokes(g,S,300,['#151311'],{angle:0,jit:.5,len:[10,40],wid:[2,4],alpha:[.4,.8]});
+  return canvasTex(c);})();
+const topTex=(()=>{const S=256;const [c,g]=mkCanvas(S,'#6f6a60');strokes(g,S,1200,['#4c4840','#857f72','#5d5850','#3a3732'],{angle:.3,jit:1.5,len:[8,30],wid:[3,8]});return canvasTex(c);})();
+const groundTex=(()=>{const S=512;const [c,g]=mkCanvas(S,'#a39d84');
+  strokes(g,S,3200,['#8f8a72','#b2ad95','#979a7a','#a9a58a','#7f8468'],{angle:0,jit:1.4,len:[10,34],wid:[4,10],alpha:[.3,.7]});
+  // mijeom: rice-shaped dots of the brush
+  for(let i=0;i<2600;i++){const x=rnd()*S,y=rnd()*S;g.fillStyle=pick(['rgba(40,44,32,.32)','rgba(60,66,48,.28)','rgba(30,32,26,.26)']);g.beginPath();g.ellipse(x,y,rr(1.5,3.5),rr(1,2),rr(-.4,.4),0,Math.PI*2);g.fill();}
+  return canvasTex(c);})();
+const pathTex=(()=>{const [c,g]=mkCanvas(128,'#c9c2ae');strokes(g,128,500,['#b8b09a','#d6cfbb','#aea692'],{angle:0,jit:.8,len:[6,18],wid:[2,5]});
+  g.strokeStyle='rgba(90,80,60,.35)';g.lineWidth=3;for(let y=8;y<128;y+=21){g.beginPath();g.moveTo(4,y+rr(-2,2));g.lineTo(124,y+rr(-2,2));g.stroke();}return canvasTex(c);})();
+const waterTex=(()=>{const c=document.createElement('canvas');c.width=64;c.height=256;const g=c.getContext('2d');g.fillStyle='rgba(240,236,224,.25)';g.fillRect(0,0,64,256);
+  g.lineCap='round';for(let i=0;i<120;i++){g.strokeStyle='rgba(255,252,244,'+rr(.5,1)+')';g.lineWidth=rr(1.5,4);const x=rr(4,60),y=rnd()*256,L=rr(20,70);g.beginPath();g.moveTo(x,y);g.lineTo(x+rr(-2,2),y+L);g.stroke();}
+  return canvasTex(c);})();
+const M={
+  pine:inkMat('#2a3328',{colors:['#1a2018','#2a3328','#384234','#232a20','#3c4636'],angle:0,jit:.8,size:128}),
+  pine2:inkMat('#3a4636',{colors:['#2c362a','#45523f','#334030','#506048'],angle:0,jit:.9,size:128}),
+  leaf:inkMat('#5d6c4e',{colors:['#4c5a40','#6c7c5a','#56664a','#7a8a66'],angle:0,jit:1.4,size:128}),
+  trunk:inkMat('#3a3028',{size:64}),
+  stone:inkMat('#8d877a',{angle:.2,jit:1,size:128}),
+  darkstone:inkMat('#4a463e',{angle:Math.PI/2,jit:.3,size:128}),
+  wood:inkMat('#6a5038',{angle:Math.PI/2,jit:.15,size:128}),
+  woodLt:inkMat('#a0835e',{angle:0,jit:.15,size:128}),
+  wall:inkMat('#e9e1cc',{angle:0,jit:1,size:128,colors:['#e9e1cc','#ddd4bd','#f1eadb','#d6ccb2']}),
+  tile:inkMat('#3c3b38',{angle:0,jit:.05,size:128,colors:['#2c2b28','#3c3b38','#4a4945','#232220']}),
+  thatch:inkMat('#a8945e',{angle:Math.PI/2,jit:.25,size:128,colors:['#9a8550','#b6a26a','#8a7646','#c2ae78']}),
+  mud:inkMat('#a8946e',{size:128}),
+  fort:inkMat('#a29b8c',{angle:0,jit:.2,size:128,colors:['#948d7e','#aaa394','#8a8475','#b8b1a2']}),
+  roofDk:inkMat('#2a2926',{size:64}),
+  mat:inkMat('#c9b47a',{angle:0,jit:.05,size:64}),
+};
+const pathMat=new T.MeshLambertMaterial({map:pathTex,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+const waterMat=new T.MeshBasicMaterial({map:waterTex,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4});
+
+/* ---------------- Terrain mesh ---------------- */
+const TX0=-260,TX1=260,TZ0=-360,TZ1=290,TSEG=2.2;
+{const W=TX1-TX0,D=TZ1-TZ0,nx=Math.round(W/TSEG),nz=Math.round(D/TSEG);
+ const g=new T.PlaneGeometry(W,D,nx,nz);g.rotateX(-Math.PI/2);g.translate((TX0+TX1)/2,0,(TZ0+TZ1)/2);
+ const p=g.attributes.position;const dm=new Float32Array(p.count);
+ for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i);p.setY(i,terrainH(x,z));dm[i]=domeMask(x,z);}
+ g.setAttribute('dome',new T.BufferAttribute(dm,1));g.computeVertexNormals();
+ const m=new T.ShaderMaterial({uniforms:{tRock:{value:rockTex},tTop:{value:topTex},tGround:{value:groundTex},sun:{value:new T.Vector3(.45,.75,.5).normalize()}},
+  vertexShader:'attribute float dome;varying vec3 vP;varying vec3 vN;varying float vD;void main(){vP=position;vN=normal;vD=dome;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:`uniform sampler2D tRock,tTop,tGround;uniform vec3 sun;varying vec3 vP;varying vec3 vN;varying float vD;
+void main(){vec3 n=normalize(vN);float slope=1.-n.y;
+ float rock=clamp(smoothstep(.32,.62,slope)+vD*smoothstep(.06,.25,slope)+vD*.25,0.,1.);
+ vec3 w=pow(abs(n),vec3(4.));w/=(w.x+w.y+w.z);
+ vec3 rc=texture2D(tRock,vP.zy*vec2(.022,.014)).rgb*w.x+texture2D(tRock,vP.xy*vec2(.022,.014)).rgb*w.z+texture2D(tTop,vP.xz*.028).rgb*w.y;
+ vec3 gc=texture2D(tGround,vP.xz*.03).rgb;
+ vec3 c=mix(gc,rc*mix(.85,.42,vD),rock);
+ float l=.55+.55*max(dot(n,sun),0.);
+ gl_FragColor=vec4(c*l,1.);}`});
+ const mesh=new T.Mesh(g,m);scene.add(mesh);}
+
+/* ---------------- Collision data ---------------- */
+const colliders=[];const circles=[];const segs=[];
+const MAPR=[];
+function boxR(x0,x1,y0,y1,z0,z1,mat,o){o=o||{};const w=x1-x0,h=y1-y0,d=z1-z0;const g=new T.BoxGeometry(w,h,d);
+  const m=new T.Mesh(g,mat);m.position.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2);(o.parent||scene).add(m);
+  if(o.col)colliders.push({x0,x1,z0,z1,y1});return m;}
+const treeGrid=new Map();const TG=8;
+function addTreeCol(x,z,r){const k=Math.floor(x/TG)+','+Math.floor(z/TG);let a=treeGrid.get(k);if(!a)treeGrid.set(k,a=[]);a.push([x,z,r]);}
+
+/* ---------------- Trail ---------------- */
+const SIGHTS=[
+  {id:'suseong',name:'수성동 계곡',x:-66,z:-30,hint:'왼편 골짜기의 물소리를 따라가면 돌다리가 있는 계곡이 나오네.',
+   desc:'비에 불은 계곡물이 바위를 타고 흘러내린다. 돌다리 아래로 물소리가 크게 울린다.'},
+  {id:'seon',name:'선바위',x:-100,z:-88,hint:'왼쪽 능선 중턱에, 장삼 입은 스님 두 분이 서 있는 듯한 바위가 있지.',
+   desc:'장삼을 걸친 스님이 참선하는 듯한 두 바위. 그 아래 약수가 솟는다.'},
+  {id:'summit',name:'인왕산 꼭대기',x:-2,z:-152,hint:'꼭대기는 뒤편으로 돌아 오르게. 앞쪽은 바위가 깎아지른 듯해서 오를 수 없네.',
+   desc:'구름이 발아래로 흐른다. 동쪽으로 한양의 기와지붕들이 안개 사이로 보인다.'},
+  {id:'chima',name:'치마바위',x:74,z:-118,hint:'꼭대기에서 오른쪽 능선으로 내려오면 넓적한 치마바위가 보이는 자리가 있네.',
+   desc:'산의 동쪽 사면에 넓게 펼쳐진 바위. 비에 젖어 먹물을 끼얹은 듯 검게 빛난다.'},
+  {id:'beom',name:'범바위',x:78,z:-70,hint:'오른쪽 능선 끝, 웅크린 범처럼 생긴 바위가 마을을 내려다보고 있지.',
+   desc:'웅크린 범의 등처럼 둥근 바위. 마을과 계곡이 한눈에 내려다보인다.'}];
+const VILLAGE={x:22,z:12};const KEEP=[[-36,-58],[52,-44],[-17,-230],[-93,-82],[-58,-22],[-88,-92],[8,-160],[80,-112],[19,70],[50.5,43.5]];const nearKeep=(x,z,r)=>KEEP.some(k=>Math.hypot(x-k[0],z-k[1])<r);const PAINTER={x:8,z:64};
+const trailSegs=[];let trailPts=[];
+{const P=[[VILLAGE.x,VILLAGE.z],[-68,-28],[-100,-88],[0,-152],[74,-118],[78,-70],[VILLAGE.x,VILLAGE.z]];
+ for(let i=0;i<P.length-1;i++){const p=findPath(P[i][0],P[i][1],P[i+1][0],P[i+1][1],2.0)||[P[i],P[i+1]];trailSegs.push(p);trailPts=trailPts.concat(i?p.slice(1):p);}
+ // lead-in from the painter's viewpoint to the village
+ const lead=findPath(16,76,VILLAGE.x,VILLAGE.z,2.0)||[[16,76],[VILLAGE.x,VILLAGE.z]];trailSegs.push(lead);}
+const trailGrid=new Map();const TRG=6;
+{for(const p of trailSegs)for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];const x0=Math.min(a[0],b[0])-3,x1=Math.max(a[0],b[0])+3,z0=Math.min(a[1],b[1])-3,z1=Math.max(a[1],b[1])+3;
+  for(let gx=Math.floor(x0/TRG);gx<=Math.floor(x1/TRG);gx++)for(let gz=Math.floor(z0/TRG);gz<=Math.floor(z1/TRG);gz++){const k=gx+','+gz;let arr=trailGrid.get(k);if(!arr)trailGrid.set(k,arr=[]);arr.push([a[0],a[1],b[0],b[1]]);}}}
+function segDist(px,pz,ax,az,bx,bz){const dx=bx-ax,dz=bz-az;const L=dx*dx+dz*dz;let t=L?((px-ax)*dx+(pz-az)*dz)/L:0;t=clamp(t,0,1);return Math.hypot(px-(ax+dx*t),pz-(az+dz*t));}
+function trailDist(x,z){const arr=trailGrid.get(Math.floor(x/TRG)+','+Math.floor(z/TRG));if(!arr)return 99;let m=99;for(const s of arr){const d=segDist(x,z,s[0],s[1],s[2],s[3]);if(d<m)m=d;}return m;}
+function ribbon(pts,width,yOff,mat,vScale,taper){
+  const pos=[],uv=[],idx=[];let acc=0;
+  for(let i=0;i<pts.length;i++){const a=pts[Math.max(0,i-1)],b=pts[Math.min(pts.length-1,i+1)];let dx=b[0]-a[0],dz=b[1]-a[1];const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
+    if(i>0)acc+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
+    const w=width*(taper?lerp(taper[0],taper[1],i/(pts.length-1)):1)/2;const px=-dz*w,pz=dx*w;
+    for(const s of [-1,1]){const x=pts[i][0]+px*s,z=pts[i][1]+pz*s;pos.push(x,terrainH(x,z)+yOff,z);uv.push(s<0?0:1,acc/vScale);}
+    if(i>0){const k=i*2;idx.push(k-2,k-1,k,k-1,k+1,k);}}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
+  const m=new T.Mesh(g,mat);scene.add(m);return m;}
+for(const p of trailSegs)ribbon(p,2.3,.07,pathMat,3);
+
+/* ---------------- Fortress wall (Hanyang city wall on the ridge) ---------------- */
+const wallPts=[];
+{const av=(x,z)=>Math.max(0,140-terrainH(x,z))*.06;
+ const parts=[[-150,-112,-118,-122],[-118,-122,0,-152],[0,-152,96,-128],[96,-128,135,-95]];
+ for(const [a,b,c,d] of parts){const p=findPath(a,b,c,d,4,av);if(p)for(const q of (wallPts.length?p.slice(1):p))wallPts.push(q);}
+ for(let i=0;i<wallPts.length-1;i++){const a=wallPts[i],b=wallPts[i+1];const mx=(a[0]+b[0])/2,mz=(a[1]+b[1])/2;
+   if(trailDist(mx,mz)<3.4)continue; // gates (amun) where the trail crosses
+   const ha=terrainH(a[0],a[1]),hb=terrainH(b[0],b[1]);const L=Math.hypot(b[0]-a[0],b[1]-a[1])+.6;
+   const top=Math.max(ha,hb)+1.9,bot=Math.min(ha,hb)-1;const g=new T.BoxGeometry(L,top-bot,1.1);
+   const m=new T.Mesh(g,M.fort);m.position.set(mx,(top+bot)/2,mz);m.rotation.y=-Math.atan2(b[1]-a[1],b[0]-a[0]);scene.add(m);
+   const cap=new T.Mesh(new T.BoxGeometry(L,.22,1.35),M.roofDk);cap.position.set(mx,top+.11,mz);cap.rotation.y=m.rotation.y;scene.add(cap);
+   segs.push({ax:a[0],az:a[1],bx:b[0],bz:b[1],r:.6});}}
+
+/* ---------------- Waterfalls & streams ---------------- */
+const falls=[];
+function descend(x,z,maxN){const pts=[[x,z]];let vx=0,vz=0;
+  for(let i=0;i<maxN;i++){const e=1.2,h=terrainH(x,z);const gx=(terrainH(x+e,z)-terrainH(x-e,z))/(2*e),gz=(terrainH(x,z+e)-terrainH(x,z-e))/(2*e);const gl=Math.hypot(gx,gz)||1;
+    vx=vx*.55-gx/gl*.45;vz=vz*.55-gz/gl*.45;const vl=Math.hypot(vx,vz)||1;x+=vx/vl*1.6;z+=vz/vl*1.6;pts.push([x,z]);if(h<2.5&&i>8)break;}
+  return pts;}
+for(const [x,z,n] of [[-32,-112,140],[30,-110,140],[-84,-66,90]]){const p=descend(x,z,n);ribbon(p,2.2,.18,waterMat,7,[.7,1.6]);falls.push({pts:p,seen:false});}
+
+/* ---------------- Trees (instanced pines, as in the brush's dotted forests) ---------------- */
+{const N=1500;const trunkG=new T.CylinderGeometry(.11,.2,1,5);trunkG.translate(0,.5,0);const layerG=new T.SphereGeometry(1,7,4);
+ const trunks=new T.InstancedMesh(trunkG,M.trunk,N),layers=new T.InstancedMesh(layerG,M.pine,N*3),round=new T.InstancedMesh(new T.IcosahedronGeometry(1,1),M.leaf,300);
+ const o=new T.Object3D();let n=0,nl=0,nr=0,tries=0;
+ while(n<N&&tries<40000){tries++;const x=rr(-210,210),z=rr(-300,95);const h=terrainH(x,z);
+   if(h>112||h<-2)continue;if(z>28&&h<4&&rnd()<.92)continue;if(slopeAt(x,z)>.95)continue;if(domeMask(x,z)>.15&&h>70)continue;
+   if(trailDist(x,z)<3.2||nearKeep(x,z,3))continue;if(Math.hypot(x-VILLAGE.x,z-VILLAGE.z)<26)continue;if(Math.abs(x-46)<16&&Math.abs(z-31)<14)continue;if(Math.hypot(x-PAINTER.x,z-PAINTER.z)<12)continue;
+   const clump=fbm(x*.03+11,z*.03+4);if(rnd()>clump*1.5-.15)continue;
+   const th=rr(6,12)*(h>60?.8:1),lean=rr(-.12,.12);
+   o.position.set(x,h-.3,z);o.rotation.set(lean,rr(0,6),rr(-.1,.1));o.scale.set(1,th,1);o.updateMatrix();trunks.setMatrixAt(n,o.matrix);
+   for(let k=0;k<3;k++){const ly=th*(.62+k*.15),r=rr(1.6,2.6)*(1-k*.22);o.position.set(x+Math.sin(lean)*ly*0.2,h-.3+ly,z);o.rotation.set(0,rr(0,6),0);o.scale.set(r,r*.42,r*rr(.8,1.2));o.updateMatrix();layers.setMatrixAt(nl++,o.matrix);}
+   addTreeCol(x,z,.35);n++;}
+ trunks.count=n;layers.count=nl;
+ // round deciduous trees around the village
+ for(let i=0;i<500&&nr<220;i++){const a=rr(0,6.28),d=rr(15,32);const x=46+Math.cos(a)*d,z=28+Math.sin(a)*d*.8-6;if(z>44)continue;if(Math.abs(x-46)<7&&z>33)continue;if([[60,50],[-4,40],[72,8],[6,26]].some(c=>Math.hypot(x-c[0],z-c[1])<6))continue;if(trailDist(x,z)<3)continue;if(Math.abs(x-46)<13&&Math.abs(z-30)<11)continue;
+   const h=terrainH(x,z),s=rr(2,3.4);o.position.set(x,h+s*1.25,z);o.rotation.set(rr(0,3),rr(0,3),0);o.scale.set(s,s*.9,s);o.updateMatrix();round.setMatrixAt(nr++,o.matrix);addTreeCol(x,z,.4);}
+ round.count=nr;scene.add(trunks,layers,round);}
+// scattered rocks
+{const N=240;const rk=new T.InstancedMesh(new T.IcosahedronGeometry(1,0),M.darkstone,N);const o=new T.Object3D();let n=0;
+ for(let t=0;t<6000&&n<N;t++){const x=rr(-200,200),z=rr(-290,60),h=terrainH(x,z);if(h<6||h>125)continue;if(trailDist(x,z)<2.6||nearKeep(x,z,4))continue;
+   const s=rr(.8,3.2);o.position.set(x,h+s*.25,z);o.rotation.set(rr(0,3),rr(0,3),rr(0,3));o.scale.set(s,s*rr(.5,.9),s*rr(.7,1.2));o.updateMatrix();rk.setMatrixAt(n++,o.matrix);if(s>1.4)addTreeCol(x,z,s*.8);}
+ rk.count=n;scene.add(rk);}
+
+/* ---------------- Village: the house among the trees ---------------- */
+const HOUSE={x:46,z:30};
+function roofMesh(len,depth,height,mat){ // curved Korean roof: concave slopes, upturned eaves
+  const sh=new T.Shape();const d=depth/2;
+  sh.moveTo(-d-.3,-.15);sh.quadraticCurveTo(-d*.45,height*.38,0,height);sh.quadraticCurveTo(d*.45,height*.38,d+.3,-.15);sh.lineTo(d+.3,.12);sh.quadraticCurveTo(d*.45,height*.48,0,height+.25);sh.quadraticCurveTo(-d*.45,height*.48,-d-.3,.12);sh.closePath();
+  const g=new T.ExtrudeGeometry(sh,{depth:len,bevelEnabled:false,steps:1});g.translate(0,0,-len/2);g.rotateY(Math.PI/2);
+  const grp=new T.Group();grp.add(new T.Mesh(g,mat));
+  const ridge=new T.Mesh(new T.BoxGeometry(len+.6,.32,.42),M.roofDk);ridge.position.y=height+.2;grp.add(ridge);
+  for(const sx of [-1,1]){const orn=new T.Mesh(new T.ConeGeometry(.22,.7,5),M.roofDk);orn.position.set(sx*(len/2+.3),height+.45,0);orn.rotation.z=sx*-.5;grp.add(orn);
+    for(const sz of [-1,1]){const up=new T.Mesh(new T.ConeGeometry(.18,1.1,4),mat);up.position.set(sx*(len/2+.25),.25,sz*(d+.2));up.rotation.set(sz*.9,0,sx*-.9);grp.add(up);}}
+  return grp;}
+function giwa(x,z,ry,L,D){const g=new T.Group();const h=terrainH(x,z);g.position.set(x,h,z);g.rotation.y=ry;scene.add(g);
+  const base=new T.Mesh(new T.BoxGeometry(L+1.2,.75,D+1.2),M.stone);base.position.y=.37;g.add(base);
+  const floor=new T.Mesh(new T.BoxGeometry(L,.12,D),M.woodLt);floor.position.y=1.15;g.add(floor);
+  for(let i=0;i<=4;i++)for(const sz of [-1,1]){const p=new T.Mesh(new T.CylinderGeometry(.13,.15,2.5,8),M.wood);p.position.set(-L/2+i*L/4,2,sz*D/2);g.add(p);}
+  const back=new T.Mesh(new T.BoxGeometry(L,2.4,.12),M.wall);back.position.set(0,2.4,-D/2+.05);g.add(back);
+  for(const sx of [-1,1]){const side=new T.Mesh(new T.BoxGeometry(.12,2.4,D),M.wall);side.position.set(sx*(L/2-.05),2.4,0);g.add(side);}
+  const rm1=new T.Mesh(new T.BoxGeometry(L/4,2.4,.1),M.wall);rm1.position.set(-L*.375,2.4,D/2-.05);g.add(rm1);
+  const rm2=new T.Mesh(new T.BoxGeometry(L/4,2.4,.1),M.wall);rm2.position.set(L*.375,2.4,D/2-.05);g.add(rm2);
+  for(const xx of [-L*.375,L*.375])for(const yy of [1.6,2.4,3.2]){const bar=new T.Mesh(new T.BoxGeometry(L/4,.05,.12),M.wood);bar.position.set(xx,yy,D/2-.02);g.add(bar);}
+  const roof=roofMesh(L+2.2,D+3.2,2.1,M.tile);roof.position.y=3.6;g.add(roof);
+  const c=Math.cos(ry),s=Math.sin(ry);const hx=(L+1.2)/2,hz=(D+1.2)/2;
+  const xs=[-hx,hx],zs=[-hz,hz];let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(const a of xs)for(const b of zs){const wx=x+a*c+b*s,wz=z-a*s+b*c;x0=Math.min(x0,wx);x1=Math.max(x1,wx);z0=Math.min(z0,wz);z1=Math.max(z1,wz);}
+  colliders.push({x0,x1,z0,z1,y1:5});MAPR.push([x0,x1,z0,z1,'giwa']);return g;}
+function choga(x,z,ry){const g=new T.Group();const h=terrainH(x,z);g.position.set(x,h,z);g.rotation.y=ry;scene.add(g);
+  const body=new T.Mesh(new T.BoxGeometry(5,2.2,3.4),M.mud);body.position.y=1.1;g.add(body);
+  const door=new T.Mesh(new T.PlaneGeometry(.9,1.5),M.wood);door.position.set(-.8,.95,1.71);g.add(door);
+  const roof=new T.Mesh(new T.SphereGeometry(1,14,8,0,Math.PI*2,0,Math.PI/2),M.thatch);roof.scale.set(3.4,1.6,2.5);roof.position.y=2.1;g.add(roof);
+  colliders.push({x0:x-2.8,x1:x+2.8,z0:z-2.2,z1:z+2.2,y1:3});MAPR.push([x-2.8,x+2.8,z-2.2,z+2.2,'choga']);}
+giwa(HOUSE.x,HOUSE.z,0,9,4.6);
+// courtyard wall (damjang) with gate on the front (+z) side
+{const W=12,D=10,cx=HOUSE.x,cz=HOUSE.z+1.5;
+ const runs=[[cx-W,cz-D,cx+W,cz-D],[cx-W,cz-D,cx-W,cz+D],[cx+W,cz-D,cx+W,cz+D],[cx-W,cz+D,cx-2,cz+D],[cx+2,cz+D,cx+W,cz+D]];
+ for(const [ax,az,bx,bz] of runs){const L=Math.hypot(bx-ax,bz-az),mx=(ax+bx)/2,mz=(az+bz)/2,h=terrainH(mx,mz);const ry=-Math.atan2(bz-az,bx-ax);
+   const w=new T.Mesh(new T.BoxGeometry(L,1.7,.5),M.wall);w.position.set(mx,h+.85,mz);w.rotation.y=ry;scene.add(w);
+   const cap=new T.Mesh(new T.BoxGeometry(L+.2,.25,.95),M.tile);cap.position.set(mx,h+1.82,mz);cap.rotation.y=ry;scene.add(cap);segs.push({ax,az,bx,bz,r:.35});}
+ const gh=terrainH(cx,cz+D);for(const sx of [-2.1,2.1]){const p=new T.Mesh(new T.CylinderGeometry(.14,.16,2.8,8),M.wood);p.position.set(cx+sx,gh+1.4,cz+D);scene.add(p);}
+ const gr=roofMesh(5.4,2.2,.9,M.tile);gr.position.set(cx,gh+2.8,cz+D);scene.add(gr);
+ MAPR.push([cx-W,cx+W,cz-D,cz+D,'yard']);}
+choga(60,50,.3);choga(-4,40,-.4);choga(72,8,.9);choga(6,26,.2);
+// painter's spot: straw mat, paper and inkstone
+
+const paperCanvas=document.createElement('canvas');paperCanvas.width=600;paperCanvas.height=350;const paperTex=canvasTex(paperCanvas,false);
+{const h=terrainH(PAINTER.x,PAINTER.z);const mat=new T.Mesh(new T.BoxGeometry(2.6,.04,1.8),M.mat);mat.position.set(PAINTER.x,h+.02,PAINTER.z-.3);scene.add(mat);
+ const pp=new T.Mesh(new T.PlaneGeometry(1.2,.7),new T.MeshBasicMaterial({map:paperTex}));pp.rotation.x=-Math.PI/2;pp.position.set(PAINTER.x+.05,h+.06,PAINTER.z-1.05);scene.add(pp);
+ const ink=new T.Mesh(new T.BoxGeometry(.22,.06,.32),M.roofDk);ink.position.set(PAINTER.x+.85,h+.07,PAINTER.z-.9);scene.add(ink);
+ circles.push({x:PAINTER.x,z:PAINTER.z-.6,r:1.1});}
+// city of Hanyang in the plain below (east)
+{const N=900;const body=new T.InstancedMesh(new T.BoxGeometry(1,1,1),M.wall,N),roof=new T.InstancedMesh(new T.ConeGeometry(.78,1,4),M.tile,N);const o=new T.Object3D();let n=0;
+ for(let t=0;t<5000&&n<N;t++){const x=rr(-240,240),z=rr(110,285);if(Math.abs(x+40)<26&&Math.abs(z-215)<22)continue;const h=terrainH(x,z);const w=rr(4,7),d=rr(3,5),ry=rr(-.2,.2)+(rnd()<.5?0:Math.PI/2);
+   o.position.set(x,h+1.1,z);o.rotation.set(0,ry,0);o.scale.set(w,2.2,d);o.updateMatrix();body.setMatrixAt(n,o.matrix);
+   o.position.set(x,h+2.9,z);o.rotation.set(0,ry+Math.PI/4,0);o.scale.set(w*.95,1.6,d*1.15);o.updateMatrix();roof.setMatrixAt(n,o.matrix);n++;}
+ body.count=roof.count=n;scene.add(body,roof);
+ const px=-40,pz=215,ph=terrainH(px,pz);const plat=new T.Mesh(new T.BoxGeometry(40,1.5,26),M.stone);plat.position.set(px,ph+.75,pz);scene.add(plat);
+ const hall=new T.Mesh(new T.BoxGeometry(22,7,12),M.wall);hall.position.set(px,ph+5,pz);scene.add(hall);
+ const r1=roofMesh(30,20,4,M.tile);r1.position.set(px,ph+8.5,pz);scene.add(r1);const r2=roofMesh(24,15,3.4,M.tile);r2.position.set(px,ph+12.5,pz);scene.add(r2);}
+// distant ranges (washed out by aerial mist)
+for(const [R0,amp,base,seed,mat] of [[620,150,40,3,M.darkstone],[980,240,60,9,M.stone]]){const seg=180;const g=new T.CylinderGeometry(R0,R0,1,seg,1,true);const p=g.attributes.position;
+  for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i);const a=Math.atan2(z,x);if(p.getY(i)>0){const n=fbm(Math.cos(a)*2.2+seed,Math.sin(a)*2.2+seed)*.7+vn(Math.cos(a)*7+seed,Math.sin(a)*7)*.3;
+    const eastLow=1-.55*clamp((Math.sin(a)+.2),0,1);p.setY(i,base+Math.pow(n,1.6)*amp*1.8*eastLow);}else p.setY(i,-30);}
+  g.computeVertexNormals();const m=new T.Mesh(g,mat);m.material=mat.clone();m.material.side=T.DoubleSide;scene.add(m);}
+
+/* ---------------- Sights (stone tablets), story boards, herbs, spring ---------------- */
+function tabletTex(text){const c=document.createElement('canvas');c.width=96;c.height=256;const g=c.getContext('2d');
+  const draw=()=>{g.fillStyle='#55514a';g.fillRect(0,0,96,256);strokes(g,96,140,['#4a463f','#625d55','#3e3a34'],{angle:Math.PI/2,jit:.3,len:[10,40],wid:[2,5]});
+    g.fillStyle='rgba(238,230,210,.92)';g.font='bold 40px "Song Myung","Noto Serif KR",serif';g.textAlign='center';g.textBaseline='middle';
+    const chars=[...text.replace(/\s/g,'')];const step=Math.min(48,220/chars.length);chars.forEach((ch,i)=>g.fillText(ch,48,128-(chars.length-1)*step/2+i*step));};
+  draw();const t=canvasTex(c,false);t.redraw=()=>{draw();t.needsUpdate=true;};return t;}
+const tabletTexes=[];
+for(const s of SIGHTS){const h=terrainH(s.x,s.z);const tt=tabletTex(s.name.replace('인왕산 ',''));tabletTexes.push(tt);
+  const g=new T.Group();g.position.set(s.x,h,s.z);scene.add(g);g.rotation.y=Math.atan2(PAINTER.x-s.x,PAINTER.z-s.z)*.0+rr(-.3,.3);
+  const base=new T.Mesh(new T.BoxGeometry(1.2,.35,.7),M.stone);base.position.y=.17;g.add(base);
+  const st=new T.Mesh(new T.BoxGeometry(.7,1.9,.28),[M.darkstone,M.darkstone,M.darkstone,M.darkstone,new T.MeshLambertMaterial({map:tt}),new T.MeshLambertMaterial({map:tt})]);st.position.y=1.3;g.add(st);
+  s.py=h+1.4;circles.push({x:s.x,z:s.z,r:.6});s.found=false;s.told=false;}
+// sight dressing: bridge (Girin-gyo) over the Suseong stream, monk rocks, tiger rock, summit rock
+{const st=falls[2].pts;let bi=0,bd=1e9;st.forEach((p,i)=>{const d=Math.hypot(p[0]+62,p[1]+24);if(d<bd){bd=d;bi=i;}});const a=st[Math.max(0,bi-1)],b=st[Math.min(st.length-1,bi+1)];
+ const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);const bx=st[bi][0],bz=st[bi][1],bh=terrainH(bx,bz);
+ const slab=new T.Mesh(new T.BoxGeometry(5.5,.35,1.5),M.stone);slab.position.set(bx,bh+.7,bz);slab.rotation.y=-ang+Math.PI/2;scene.add(slab);
+ for(const s of [-1,1]){const pier=new T.Mesh(new T.BoxGeometry(1,1.2,1.4),M.darkstone);pier.position.set(bx+Math.cos(ang+Math.PI/2)*2.6*s,bh+.2,bz+Math.sin(ang+Math.PI/2)*2.6*s);pier.rotation.y=slab.rotation.y;scene.add(pier);}
+ window.__bridge={x:bx,z:bz};}
+const BRIDGE=window.__bridge;
+{const sp=SIGHTS[1];for(const [dx,dz,s] of [[4,-3,1],[6.2,-1.5,.85]]){const x=sp.x+dx,z=sp.z+dz,h=terrainH(x,z);const g=new T.Group();g.position.set(x,h,z);scene.add(g);
+   const parts=[[0,1.6*s,1.6*s,1.1],[0,3.9*s,1.25*s,1],[.15,5.6*s,.9*s,.95]];for(const [ox,y,r,sy] of parts){const m=new T.Mesh(new T.SphereGeometry(r,10,8),M.darkstone);m.position.set(ox,y,0);m.scale.set(1,sy*1.25,.85);g.add(m);}circles.push({x,z,r:1.6*s});}}
+{const sp=SIGHTS[4];const x=sp.x+3,z=sp.z-2.5,h=terrainH(x,z);const g=new T.Group();g.position.set(x,h,z);g.rotation.y=.6;scene.add(g);
+ const b=new T.Mesh(new T.SphereGeometry(2.2,12,8),M.darkstone);b.scale.set(1.7,.8,1);b.position.y=.9;g.add(b);const hd=new T.Mesh(new T.SphereGeometry(1.2,10,8),M.darkstone);hd.position.set(3.2,1.3,0);hd.scale.set(1,.85,.9);g.add(hd);circles.push({x,z,r:3.2});}
+// spring (yaksu-teo) near Seonbawi
+const SPRING={x:-93,z:-82};
+{const h=terrainH(SPRING.x,SPRING.z);const basin=new T.Mesh(new T.CylinderGeometry(.6,.7,.5,12),M.stone);basin.position.set(SPRING.x,h+.25,SPRING.z);scene.add(basin);
+ const w=new T.Mesh(new T.CircleGeometry(.55,12),new T.MeshBasicMaterial({color:0xd9d4c4}));w.rotation.x=-Math.PI/2;w.position.set(SPRING.x,h+.51,SPRING.z);scene.add(w);
+ const spout=new T.Mesh(new T.CylinderGeometry(.05,.05,1.1,6),M.woodLt);spout.rotation.z=Math.PI/2.4;spout.position.set(SPRING.x-.7,h+.85,SPRING.z);scene.add(spout);
+ const gourd=new T.Mesh(new T.SphereGeometry(.16,8,6,0,Math.PI*2,0,Math.PI/2),M.woodLt);gourd.rotation.x=Math.PI;gourd.position.set(SPRING.x+.5,h+.62,SPRING.z+.2);scene.add(gourd);
+ circles.push({x:SPRING.x,z:SPRING.z,r:.8});}
+const STORIES=[
+  {id:'about',title:'인왕제색도',where:'노화가가 앉은 자리 옆',x:19,z:70,
+   t:'1751년 윤5월, 일흔여섯의 겸재 정선이 큰비가 그친 뒤의 인왕산을 그린 그림입니다. 비에 젖은 바위는 먹으로 짙게, 산허리를 감싼 안개는 종이를 비워 두는 것으로 나타냈어요. 국보이며, 2021년 고 이건희 회장의 유족이 국립중앙박물관에 기증했습니다.'},
+  {id:'house',title:'그림 속 기와집',where:'기와집 대문 앞',x:HOUSE.x+4.5,z:HOUSE.z+13.5,
+   t:'그림 오른쪽 아래 숲속에 기와집 한 채가 있어요. 정선의 오랜 벗인 시인 사천 이병연의 집으로 보는 해석이 널리 알려져 있고, 병석의 벗이 낫기를 바라며 그렸다는 이야기도 전합니다. 정선 자신의 집이라는 견해도 있어요.'},
+  {id:'suseong',title:'수성동과 기린교',where:'수성동 계곡, 돌다리 근처',x:-58,z:-22,
+   t:'정선은 인왕산 자락 수성동 계곡도 그렸어요. 그 그림 속 돌다리 기린교는 지금도 남아 있고, 계곡은 복원되어 서촌에서 찾아갈 수 있습니다. 정선은 인왕산 아래 장동 일대에 오래 살며 이 동네의 경치를 여러 번 화폭에 담았어요.'},
+  {id:'jingyeong',title:'진경산수',where:'선바위 아래 약수터',x:-88,z:-92,
+   t:'중국 그림책 속 이상적인 산이 아니라, 조선의 실제 산천을 직접 보고 그린 그림을 진경산수라고 해요. 정선은 이 화풍을 크게 발전시킨 화가로 꼽힙니다. 인왕산, 금강산처럼 실제로 걸어 본 산을 그렸지요.'},
+  {id:'wall',title:'인왕산과 한양도성',where:'꼭대기 근처 성곽',x:8,z:-160,
+   t:'인왕산은 서울 서쪽에 있는 높이 약 338m의 화강암 바위산이에요. 조선의 도읍 한양을 둘러싼 도성이 이 산의 능선을 따라 지나갑니다. 성벽이 산길과 만나는 곳에는 사람이 드나들 수 있는 작은 문이 나 있어요.'},
+  {id:'chima',title:'치마바위 이야기',where:'치마바위가 보이는 자리',x:80,z:-112,
+   t:'중종이 왕위에 오른 뒤 왕비 신씨가 궁에서 쫓겨나자, 왕은 궁궐에서 인왕산을 바라보며 그리워했다고 해요. 이를 들은 신씨가 자신이 즐겨 입던 붉은 치마를 이 바위에 펼쳐 두었다는 전설에서 치마바위라는 이름이 나왔습니다.'},
+  {id:'ink',title:'먹을 쌓고, 종이를 비우다',where:'그림을 완성하면 들을 수 있어요',
+   t:'인왕제색도의 바위는 먹을 여러 번 겹쳐 칠하고 큰 붓을 위에서 아래로 쓸어내리듯 그려 무게감이 있어요. 반대로 안개는 칠하지 않고 종이를 그대로 비워 두었지요. 짙은 먹과 하얀 여백이 맞서면서 비 갠 뒤의 축축하고 맑은 공기가 느껴집니다.'}];
+{const c=document.createElement('canvas');c.width=128;c.height=100;const g=c.getContext('2d');g.fillStyle='#e9e0c8';g.fillRect(0,0,128,100);
+ strokes(g,128,60,['rgba(40,36,30,.6)','rgba(40,36,30,.35)'],{angle:Math.PI/2,jit:.25,len:[20,50],wid:[4,9]});
+ g.fillStyle='#b3312a';g.fillRect(88,62,24,24);g.fillStyle='#f4ead8';g.font='bold 16px serif';g.textAlign='center';g.fillText('話',100,80);
+ g.strokeStyle='#3a2a1a';g.lineWidth=5;g.strokeRect(2,2,124,96);
+ const pm=new T.MeshLambertMaterial({map:canvasTex(c,false)});
+ for(const st of STORIES){if(st.x==null)continue;const h=terrainH(st.x,st.z);const g2=new T.Group();g2.position.set(st.x,h,st.z);g2.rotation.y=Math.atan2(PAINTER.x-st.x,PAINTER.z+40-st.z);scene.add(g2);
+   const post=new T.Mesh(new T.CylinderGeometry(.05,.06,1.2,6),M.wood);post.position.y=.6;g2.add(post);
+   const f=new T.Mesh(new T.BoxGeometry(.7,.56,.05),M.wood);f.position.y=1.32;g2.add(f);const p=new T.Mesh(new T.PlaneGeometry(.62,.48),pm);p.position.set(0,1.32,.03);g2.add(p);
+   st.px=st.x;st.py=h+1.32;st.pz=st.z;circles.push({x:st.x,z:st.z,r:.3});}}
+const HERBS=[{id:'doraji',name:'도라지',x:-36,z:-58,col:0x7a5ab8},{id:'deodeok',name:'더덕',x:52,z:-44,col:0x8aa070},{id:'danggwi',name:'당귀',x:-17,z:-230,col:0xf0ece0}];
+for(const hb of HERBS){const h=terrainH(hb.x,hb.z);const g=new T.Group();g.position.set(hb.x,h,hb.z);scene.add(g);
+  for(let i=0;i<5;i++){const st=new T.Mesh(new T.CylinderGeometry(.015,.02,.6,4),M.pine2);st.position.set(rr(-.2,.2),.3,rr(-.2,.2));st.rotation.set(rr(-.3,.3),0,rr(-.3,.3));g.add(st);
+    const fl=new T.Mesh(new T.SphereGeometry(.07,6,5),new T.MeshBasicMaterial({color:hb.col}));fl.position.set(st.position.x,.62,st.position.z);g.add(fl);}
+  hb.mesh=g;hb.taken=false;}
+
+/* ---------------- Mist & ink post-process ---------------- */
+const rt=new T.WebGLRenderTarget(4,4,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,format:T.RGBAFormat});
+rt.depthTexture=new T.DepthTexture();rt.depthTexture.type=T.UnsignedIntType;
+const postScene=new T.Scene(),postCam=new T.OrthographicCamera(-1,1,1,-1,0,1);
+const postMat=new T.ShaderMaterial({defines:{R:2},
+  uniforms:{tColor:{value:rt.texture},tDepth:{value:rt.depthTexture},uRes:{value:new T.Vector2(1,1)},uTime:{value:0},uNear:{value:camera.near},uFar:{value:camera.far},
+    uInvProj:{value:new T.Matrix4()},uCamWorld:{value:new T.Matrix4()},uCamPos:{value:new T.Vector3()},uMist:{value:1},uInk:{value:1},uPaper:{value:new T.Color(PAPER)}},
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader:`
+#include <packing>
+uniform sampler2D tColor;uniform sampler2D tDepth;uniform vec2 uRes;uniform float uTime,uNear,uFar,uMist,uInk;uniform mat4 uInvProj,uCamWorld;uniform vec3 uCamPos,uPaper;varying vec2 vUv;
+float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}
+float viewZ(vec2 uv){return perspectiveDepthToViewZ(texture2D(tDepth,uv).x,uNear,uFar);}
+float invD(vec2 uv){return 1./max(-viewZ(uv),.01);}
+float mistDen(vec3 p){
+  float b1=exp(-pow((p.y-11.)/8.5,2.));float b2=exp(-pow((p.y-58.)/11.,2.));float b3=exp(-pow((p.y-92.)/7.,2.))*.5;
+  vec2 q=p.xz*.016+vec2(uTime*.006,uTime*.0025);
+  float n=vn(q)*.6+vn(q*2.7+3.1)*.3+vn(q*6.1)*.1;
+  float sh=smoothstep(.28,.72,n);
+  float region=smoothstep(40.,-25.,p.z);
+  return (b1*1.1*region+b2*1.15+b3)*sh;}
+void main(){
+  vec2 px=1./uRes;vec2 uv=vUv;
+  // brush-direction wobble
+  vec2 q=uv*vec2(uRes.x/uRes.y,1.)*4.;float a=vn(q)*9.4+vn(q*2.3+1.7)*2.;vec2 dir=vec2(cos(a),sin(a));
+  vec2 rp=vec2(dot(gl_FragCoord.xy,dir),dot(gl_FragCoord.xy,vec2(-dir.y,dir.x)));float st=vn(vec2(rp.x*.06,rp.y*.5));
+  uv+=dir*(st-.5)*2.4*px*uInk;
+  // kuwahara (flat washes)
+  vec3 m0=vec3(0.),m1=vec3(0.),m2=vec3(0.),m3=vec3(0.),s0=vec3(0.),s1=vec3(0.),s2=vec3(0.),s3=vec3(0.);vec3 c;
+  for(int j=0;j<=R;j++){for(int i=0;i<=R;i++){vec2 o=vec2(float(i),float(j))*px*1.4;
+    c=texture2D(tColor,uv-o).rgb;m0+=c;s0+=c*c;c=texture2D(tColor,uv+vec2(o.x,-o.y)).rgb;m1+=c;s1+=c*c;
+    c=texture2D(tColor,uv+o).rgb;m2+=c;s2+=c*c;c=texture2D(tColor,uv+vec2(-o.x,o.y)).rgb;m3+=c;s3+=c*c;}}
+  float n=float((R+1)*(R+1));m0/=n;m1/=n;m2/=n;m3/=n;
+  float v0=dot(abs(s0/n-m0*m0),vec3(1.)),v1=dot(abs(s1/n-m1*m1),vec3(1.)),v2=dot(abs(s2/n-m2*m2),vec3(1.)),v3=dot(abs(s3/n-m3*m3),vec3(1.));
+  vec3 col=m0;float mv=v0;if(v1<mv){mv=v1;col=m1;}if(v2<mv){mv=v2;col=m2;}if(v3<mv){mv=v3;col=m3;}
+  vec3 raw=texture2D(tColor,vUv).rgb;
+  // ink tone: luminance to ink density, softly banded like layered washes
+  float lum=dot(col,vec3(.3,.59,.11));
+  float ink=1.-smoothstep(.06,.86,lum);
+  ink=mix(ink,floor(ink*5.+.5)/5.,.45);
+  ink=pow(ink,1.15);
+  vec3 inkC=vec3(.09,.085,.075);
+  vec3 tone=mix(uPaper,inkC,ink);
+  vec3 hue=col-vec3(lum);tone+=hue*.55*(1.-ink*.55); // light colour wash (damchae)
+  // outlines: inverse-depth laplacian, broken like a dry brush
+  vec2 e=px*1.35;float wC=invD(vUv);
+  float lap=abs(invD(vUv-vec2(e.x,0.))+invD(vUv+vec2(e.x,0.))-2.*wC)+abs(invD(vUv-vec2(0.,e.y))+invD(vUv+vec2(0.,e.y))-2.*wC);
+  float edge=smoothstep(.02,.1,lap/max(wC,1e-4))*(.45+.75*vn(gl_FragCoord.xy*.11));
+  tone=mix(tone,inkC,clamp(edge*.8,0.,.85));
+  tone=mix(raw,tone,uInk);
+  // mist: march through height bands in world space
+  float d=texture2D(tDepth,vUv).x;float vz=perspectiveDepthToViewZ(d,uNear,uFar);
+  vec4 vr=uInvProj*vec4(vUv*2.-1.,1.,1.);vec3 rv=vr.xyz/vr.w;vec3 pv=rv*(vz/rv.z);
+  vec3 wp=(uCamWorld*vec4(pv,1.)).xyz;vec3 rd=wp-uCamPos;float L=min(length(rd),520.);rd=normalize(rd);
+  float sl=L/12.;float T=1.;float jit=h21(gl_FragCoord.xy+fract(uTime))*sl;
+  for(int i=0;i<12;i++){float tt=jit+float(i)*sl;vec3 p=uCamPos+rd*tt;T*=exp(-mistDen(p)*uMist*sl*.05*mix(.3,1.,smoothstep(0.,28.,tt)));}
+  T*=exp(-L*.0009);
+  vec3 outc=mix(uPaper,tone,T);
+  // hanji fibres, grain and aged edges
+  vec2 fc=gl_FragCoord.xy;float fib=vn(vec2(fc.x*.05+fc.y*.012,fc.y*.4))*.6+vn(fc*.7)*.4;
+  outc*=.965+.05*fib;outc+=(h21(fc)-.5)*.02;
+  float vg=smoothstep(1.2,.45,length((vUv-.5)*vec2(1.2,1.)));outc=mix(outc*vec3(.9,.85,.76),outc,vg*.7+.3);
+  gl_FragColor=vec4(outc,1.);}`});
+const postQuad=new T.Mesh(new T.PlaneGeometry(2,2),postMat);postScene.add(postQuad);
+const QUAL=[{name:'선명',pr:()=>Math.min(window.devicePixelRatio||1,1.5),R:2},{name:'보통',pr:()=>1,R:2},{name:'가벼움',pr:()=>.7,R:1}];
+let qi=IS_TOUCH?2:1;
+function applyQuality(){const q=QUAL[qi];if(postMat.defines.R!==q.R){postMat.defines.R=q.R;postMat.needsUpdate=true;}$('bQual').textContent='화질: '+q.name;resize();}
+function resize(){const w=innerWidth,h=innerHeight,pr=QUAL[qi].pr();renderer.setPixelRatio(pr);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+  rt.setSize(Math.round(w*pr),Math.round(h*pr));postMat.uniforms.uRes.value.set(Math.round(w*pr),Math.round(h*pr));}
+window.addEventListener('resize',resize);
+
+/* ---------------- Lights ---------------- */
+scene.add(new T.HemisphereLight(0xf2ecdc,0x5a5448,.75));
+{const d=new T.DirectionalLight(0xfffaf0,.55);d.position.set(60,120,80);scene.add(d);}
+scene.add(new T.AmbientLight(0xffffff,.18));
+
+/* ---------------- Figures ---------------- */
+const G={thigh:new T.CylinderGeometry(.078,.07,.44,6),shin:new T.CylinderGeometry(.066,.056,.42,6),foot:new T.BoxGeometry(.1,.07,.22),
+  torso:new T.CylinderGeometry(.19,.24,.72,10),robe:new T.CylinderGeometry(.2,.42,1.02,14),bodice:new T.CylinderGeometry(.17,.21,.54,10),
+  arm:new T.CylinderGeometry(.06,.07,.56,6),hand:new T.SphereGeometry(.05,6,5),head:new T.SphereGeometry(.115,12,10),
+  hair:new T.SphereGeometry(.124,12,8,0,Math.PI*2,0,Math.PI*.55),neck:new T.CylinderGeometry(.05,.06,.1,6),
+  gatBrim:new T.CylinderGeometry(.3,.3,.012,20),gatCrown:new T.CylinderGeometry(.085,.1,.17,12),topknot:new T.CylinderGeometry(.035,.04,.08,6),
+  kerchief:new T.SphereGeometry(.13,10,7,0,Math.PI*2,0,Math.PI*.55),jeonrip:new T.SphereGeometry(.12,10,6,0,Math.PI*2,0,Math.PI*.5),beard:new T.BoxGeometry(.12,.16,.06)};
+function solid(hex){return new T.MeshLambertMaterial({color:new T.Color(hex)});}
+const blackM=solid('#16140f');
+function makeFigure(L){
+  const root=new T.Group(),body=new T.Group();root.add(body);const sc=L.scale||1;body.scale.setScalar(sc);
+  const mc=inkMat(L.coat,{size:64,jit:.6}),mp=inkMat(L.pants||L.coat,{size:64,jit:.6}),ms=solid(L.skin||'#d9b48e');
+  function leg(side){const hip=new T.Group();hip.position.set(side*.1,.86,0);const th=new T.Mesh(G.thigh,mp);th.position.y=-.22;hip.add(th);
+    const knee=new T.Group();knee.position.y=-.44;hip.add(knee);const sh=new T.Mesh(G.shin,mp);sh.position.y=-.21;knee.add(sh);
+    const ft=new T.Mesh(G.foot,M.trunk);ft.position.set(0,-.41,.05);knee.add(ft);body.add(hip);return {hip,knee};}
+  const LL=leg(-1),LR=leg(1);let skirt=null;
+  if(L.robe){const md=inkMat(L.robe,{size:64,jit:.4});skirt=new T.Mesh(G.robe,md);skirt.position.y=.52;body.add(skirt);const bd=new T.Mesh(G.bodice,md);bd.position.y=1.24;body.add(bd);
+    if(L.sash){const s=new T.Mesh(new T.CylinderGeometry(.205,.21,.06,12),solid(L.sash));s.position.y=1.06;body.add(s);}}
+  else{const t=new T.Mesh(G.torso,mc);t.position.y=1.17;body.add(t);}
+  function arm(side){const sh=new T.Group();sh.position.set(side*.25,1.46,0);const a=new T.Mesh(G.arm,L.robe?inkMat(L.robe,{size:64,jit:.4}):mc);a.position.y=-.28;sh.add(a);
+    const hand=new T.Mesh(G.hand,ms);hand.position.y=-.58;sh.add(hand);sh.rotation.z=side*.08;body.add(sh);return sh;}
+  const AL=arm(-1),AR=arm(1);
+  const neck=new T.Mesh(G.neck,ms);neck.position.y=1.55;body.add(neck);
+  const head=new T.Group();head.position.y=1.66;body.add(head);head.add(new T.Mesh(G.head,ms));
+  if(L.hat!=='bald'){const hair=new T.Mesh(G.hair,solid(L.hair||'#1d1a16'));hair.rotation.x=-.25;hair.position.z=-.01;head.add(hair);}
+  if(L.beard){const b=new T.Mesh(G.beard,solid(L.beard));b.position.set(0,-.1,.08);head.add(b);}
+  switch(L.hat){
+    case 'gat':{const br=new T.Mesh(G.gatBrim,blackM);br.position.y=.075;head.add(br);const cr=new T.Mesh(G.gatCrown,blackM);cr.position.y=.16;head.add(cr);break;}
+    case 'topknot':{const t=new T.Mesh(G.topknot,solid(L.hair||'#1d1a16'));t.position.y=.13;head.add(t);const band=new T.Mesh(new T.CylinderGeometry(.122,.122,.04,12),blackM);band.position.y=.04;head.add(band);break;}
+    case 'braid':{const b=new T.Mesh(new T.BoxGeometry(.05,.42,.05),solid('#1d1a16'));b.position.set(0,-.25,-.12);head.add(b);const r=new T.Mesh(new T.BoxGeometry(.06,.06,.02),solid('#b3312a'));r.position.set(0,-.47,-.12);head.add(r);break;}
+    case 'kerchief':{const k=new T.Mesh(G.kerchief,solid('#efe9da'));k.position.y=.01;k.rotation.x=-.2;head.add(k);break;}
+    case 'jeonrip':{const br=new T.Mesh(new T.CylinderGeometry(.22,.22,.012,16),blackM);br.position.y=.07;head.add(br);const cr=new T.Mesh(G.jeonrip,blackM);cr.position.y=.07;head.add(cr);
+      const tz=new T.Mesh(new T.SphereGeometry(.035,6,5),solid('#b3312a'));tz.position.y=.2;head.add(tz);break;}
+    case 'headband':{const b=new T.Mesh(new T.CylinderGeometry(.122,.122,.035,12),solid('#efe9da'));b.position.y=.03;head.add(b);break;}
+  }
+  if(L.prop==='jige'){const g=new T.Group();g.position.set(0,1.05,-.32);for(const s of [-1,1]){const p=new T.Mesh(new T.BoxGeometry(.04,1.3,.04),M.woodLt);p.position.set(s*.16,0,0);p.rotation.x=.12;g.add(p);}
+    const wood=new T.Mesh(new T.CylinderGeometry(.22,.22,.6,8),M.wood);wood.rotation.z=Math.PI/2;wood.position.set(0,.45,-.1);g.add(wood);body.add(g);}
+  if(L.prop==='jar'){const j=new T.Mesh(new T.SphereGeometry(.16,10,8),M.wood);j.scale.set(1,.9,1);j.position.y=.25;head.add(j);AR.rotation.z=2.6;AR.rotation.x=0;}
+  if(L.prop==='basket'){const b=new T.Mesh(new T.CylinderGeometry(.18,.13,.14,10),M.thatch);b.position.set(0,-.62,.1);AL.add(b);AL.rotation.x=-.5;}
+  if(L.prop==='spear'){const s=new T.Mesh(new T.CylinderGeometry(.015,.015,2.2,5),M.wood);s.position.set(0,-.4,.08);AR.add(s);const tip=new T.Mesh(new T.ConeGeometry(.04,.18,4),solid('#8a8a86'));tip.position.set(0,.78,.08);AR.add(tip);}
+  if(L.prop==='broom'){const s=new T.Mesh(new T.CylinderGeometry(.015,.015,1.2,5),M.woodLt);s.position.set(0,-.7,.18);s.rotation.x=.5;AR.add(s);const br=new T.Mesh(new T.ConeGeometry(.12,.35,6),M.thatch);br.position.set(0,-1.25,.45);br.rotation.x=.5+Math.PI;AR.add(br);}
+  if(L.prop==='fan'){const f=new T.Mesh(new T.CircleGeometry(.16,10,0,Math.PI),solid('#efe9da'));f.position.set(0,-.62,.1);f.rotation.x=-.4;AR.add(f);}
+  if(L.prop==='brush'){const b=new T.Mesh(new T.CylinderGeometry(.008,.01,.3,5),M.wood);b.position.set(0,-.66,.06);b.rotation.x=1.1;AR.add(b);}
+  if(L.prop==='moktak'){const m=new T.Mesh(new T.SphereGeometry(.08,8,6),M.wood);m.position.set(0,-.62,.1);AL.add(m);}
+  const fig={root,body,LL,LR,AL,AR,head,skirt,sc,seated:false,
+    sitFloor(){this.seated=true;body.position.y=-.6*sc;LL.hip.visible=LR.hip.visible=false;if(skirt){skirt.scale.set(1.45,.28,1.5);skirt.position.y=.74;}
+      AL.rotation.x=AR.rotation.x=-.6;},
+    anim(ph,amt,t){if(this.seated){head.rotation.y=Math.sin(t*.5+ph)*.18;return;}
+      const s=Math.sin(ph);LL.hip.rotation.x=s*.5*amt;LR.hip.rotation.x=-s*.5*amt;
+      LL.knee.rotation.x=Math.max(0,Math.sin(ph+1.4))*.8*amt;LR.knee.rotation.x=Math.max(0,Math.sin(ph+1.4+Math.PI))*.8*amt;
+      if(!L.holdL)AL.rotation.x=(L.prop==='basket'?-.5:0)-s*.35*amt;if(!L.holdR)AR.rotation.x=s*.35*amt;
+      body.position.y=Math.abs(Math.cos(ph))*.03*amt*sc;head.rotation.y=Math.sin(t*.5+ph*.3)*.15*(1-amt);}};
+  if(L.robe){LL.hip.visible=LR.hip.visible=true;}
+  return fig;
+}
+
+/* ---------------- NPCs ---------------- */
+const npcs=[];
+function routeOf(segIdx,from,to){let p=[];for(const i of segIdx)p=p.concat(trailSegs[i]);p=p.slice(from||0,to||p.length);return p.concat(p.slice().reverse().slice(1,-1));}
+class NPC{
+  constructor(o){this.o=o;this.id=o.id;this.name=o.name;this.role=o.role||'';this.fig=makeFigure(o.look);this.root=this.fig.root;scene.add(this.root);
+    this.pos=new T.Vector3(o.x,0,o.z);this.yaw=o.yaw||0;this.route=o.route||null;this.ri=0;
+    if(this.route){let best=0,bd=1e9;this.route.forEach((p,i)=>{const d=Math.hypot(p[0]-o.x,p[1]-o.z);if(d<bd){bd=d;best=i;}});this.ri=best;this.pos.x=this.route[best][0];this.pos.z=this.route[best][1];}
+    this.speed=o.speed||1;this.ph=rr(0,6);this.amt=0;this.talking=false;this.wait=0;this.r=.32;
+    if(o.floor){this.fig.sitFloor();this.seated=true;}
+    this.h=1.62*(o.look.scale||1)*(this.seated?.62:1);npcs.push(this);}
+  get y(){return (this.o.baseY!=null?this.o.baseY:terrainH(this.pos.x,this.pos.z));}
+  update(dt,t){let moving=false;
+    if(this.talking){const dx=player.x-this.pos.x,dz=player.z-this.pos.z;if(!this.o.fixed)this.turnTo(Math.atan2(dx,dz),dt*5);}
+    else if(this.route){if(this.wait>0)this.wait-=dt;else{const tg=this.route[this.ri];const dx=tg[0]-this.pos.x,dz=tg[1]-this.pos.z,d=Math.hypot(dx,dz);
+      if(d<.4){this.ri=(this.ri+1)%this.route.length;if(this.o.pause&&rnd()<.04)this.wait=rr(2,5);}
+      else{const pdx=player.x-this.pos.x,pdz=player.z-this.pos.z,pd=Math.hypot(pdx,pdz);const fx=Math.sin(this.yaw),fz=Math.cos(this.yaw);
+        if(!(pd<1.3&&(pdx*fx+pdz*fz)/pd>.45)){const sp=this.speed*dt;this.pos.x+=dx/d*sp;this.pos.z+=dz/d*sp;moving=true;}this.turnTo(Math.atan2(dx,dz),dt*4);}}}
+    else if(this.o.face!=null)this.turnTo(this.o.face,dt*2);
+    this.amt=lerp(this.amt,moving?1:0,Math.min(1,dt*6));if(moving)this.ph+=dt*this.speed*5.2;
+    this.fig.anim(this.ph,this.amt,t);if(this.o.idle)this.o.idle(this,t);
+    this.root.position.set(this.pos.x,this.y,this.pos.z);this.root.rotation.y=this.yaw;}
+  turnTo(a,k){let d=a-this.yaw;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;this.yaw+=d*Math.min(1,k);}
+}
+const facePainter=Math.atan2(DOME.x-PAINTER.x,DOME.z-PAINTER.z);
+const N={};
+N.painter=new NPC({id:'painter',name:'노화가',role:'인왕산 아래 장동에 사는 화가',look:{robe:'#ece6d6',sash:'#5a6a74',hat:'gat',beard:'#e6e2d8',hair:'#bcb8ae',prop:'brush',holdR:true},x:PAINTER.x,z:PAINTER.z,yaw:facePainter,face:facePainter,floor:true,fixed:true,
+  idle(n,t){if(!n.talking){n.fig.AR.rotation.x=-1.2+Math.sin(t*1.6)*.2;n.fig.AR.rotation.z=.15+Math.sin(t*2.3)*.1;n.fig.head.rotation.x=.25+Math.sin(t*.4)*.1;}}});
+const MARU_Y=terrainH(HOUSE.x,HOUSE.z)+1.21;
+N.friend=new NPC({id:'friend',name:'사랑채의 벗',role:'병석에 누운 늙은 시인',look:{robe:'#f0ebde',hat:'topknot',beard:'#d8d4c8',hair:'#a8a49a',skin:'#cfae8e'},x:HOUSE.x+1.2,z:HOUSE.z+1.4,yaw:0.2,face:0.2,floor:true,fixed:true,baseY:MARU_Y,
+  idle(n,t){n.fig.body.rotation.x=.08+Math.sin(t*.9)*.02;}});
+{const bl=new T.Mesh(new T.BoxGeometry(.9,.18,.8),inkMat('#7a8a8a',{size:64}));bl.position.set(HOUSE.x+1.2,MARU_Y+.12,HOUSE.z+1.75);scene.add(bl);}
+N.boy=new NPC({id:'boy',name:'마당 쓰는 아이',role:'기와집 심부름꾼',look:{coat:'#d8d2c0',pants:'#cfc8b4',hat:'braid',scale:.72,prop:'broom',holdR:true},x:HOUSE.x-4,z:HOUSE.z+6,yaw:.6,face:.6,
+  idle(n,t){n.fig.AR.rotation.x=-.4+Math.sin(t*3)*.35;n.fig.body.rotation.y=Math.sin(t*1.5)*.3;}});
+N.woodcutter=new NPC({id:'woodcutter',name:'나무꾼',role:'새벽부터 산을 오르내리는',look:{coat:'#b8ae96',pants:'#a89e86',hat:'headband',beard:'#2a241c',prop:'jige'},x:-20,z:0,route:routeOf([0,1]),speed:1.1,pause:true});
+N.washer=new NPC({id:'washer',name:'물 긷는 아낙',role:'계곡 아랫마을',look:{robe:'#c9b89a',coat:'#e8e0cc',hat:'kerchief',prop:'jar',holdR:true},x:0,z:-5,route:routeOf([0],0,30),speed:.8,pause:true});
+N.grandma=new NPC({id:'grandma',name:'약초 캐는 할머니',role:'인왕산을 제 집 마당처럼 아는',look:{robe:'#d9d2c0',coat:'#e4ddcc',hat:'kerchief',hair:'#c8c4b8',prop:'basket',holdL:true,scale:.9},x:-30,z:-50,yaw:2.4,face:2.4,
+  idle(n,t){n.fig.body.rotation.x=.35+Math.sin(t*.8)*.05;n.fig.AR.rotation.x=-.9+Math.sin(t*2)*.3;}});
+N.monk=new NPC({id:'monk',name:'스님',role:'선바위 아래 암자',look:{robe:'#8c8a84',hat:'bald',prop:'moktak',holdL:true,skin:'#d4b090'},x:-96,z:-84,yaw:.6,face:.6,
+  idle(n,t){n.fig.AL.rotation.x=-1;n.fig.AR.rotation.x=-1+Math.abs(Math.sin(t*2.4))*.4;}});
+N.scholar1=new NPC({id:'scholar1',name:'산책하는 선비',role:'시 한 수를 찾는 중',look:{robe:'#a8b4bc',sash:'#3a4a5a',hat:'gat',beard:'#2a241c',prop:'fan',holdR:true},x:40,z:-140,route:routeOf([3,4]),speed:.75,pause:true,
+  idle(n,t){n.fig.AR.rotation.x=-1+Math.sin(t*3)*.15;}});
+N.scholar2=new NPC({id:'scholar2',name:'젊은 선비',role:'과거 시험을 준비하는',look:{robe:'#e2dccb',sash:'#7a3a3a',hat:'gat',hair:'#16140f'},x:42,z:-138,route:routeOf([3,4]),speed:.75,pause:true});
+{const top=wallPts.filter(p=>terrainH(p[0],p[1])>112);N.soldier=new NPC({id:'soldier',name:'순라군',role:'도성 성곽을 지키는',look:{coat:'#3a3f52',pants:'#2e3242',hat:'jeonrip',beard:'#1d1a16',prop:'spear',holdR:true},
+  x:top.length?top[0][0]:0,z:top.length?top[0][1]:-150,route:top.length>3?top.concat(top.slice().reverse().slice(1,-1)).map(p=>[p[0]+(p===top[0]?0:1.6),p[1]+1.6]):null,speed:.8,pause:true,
+  idle(n){n.fig.AR.rotation.x=-.3;}});}
+const PEOPLE=npcs.map(n=>({id:n.id,name:n.name,role:n.role,coat:n.o.look.robe||n.o.look.coat,hat:n.o.look.hat==='gat'||n.o.look.hat==='jeonrip'?'#16140f':n.o.look.hat==='kerchief'?'#efe9da':(n.o.look.hair||'#1d1a16')}));
+
+// magpies
+const magpies=[];
+{const bm=solid('#1a1814'),wm=solid('#efe9da');
+ for(const [x,z] of [[30,30],[58,20],[26,8]]){const g=new T.Group();const b=new T.Mesh(new T.SphereGeometry(.13,8,6),bm);b.scale.set(.8,.8,1.4);b.position.y=.2;g.add(b);
+   const belly=new T.Mesh(new T.SphereGeometry(.1,8,6),wm);belly.scale.set(.8,.7,1);belly.position.set(0,.16,.04);g.add(belly);
+   const hd=new T.Mesh(new T.SphereGeometry(.07,8,6),bm);hd.position.set(0,.3,.16);g.add(hd);const bk=new T.Mesh(new T.ConeGeometry(.02,.08,4),bm);bk.rotation.x=Math.PI/2;bk.position.set(0,.3,.24);g.add(bk);
+   const tl=new T.Mesh(new T.BoxGeometry(.06,.02,.36),bm);tl.position.set(0,.25,-.3);tl.rotation.x=-.4;g.add(tl);
+   scene.add(g);magpies.push({g,x,z,hx:x,hz:z,tx:x,tz:z,t:rr(0,3),hop:0,yaw:0});}}
+
+/* ---------------- Player ---------------- */
+const player={x:12,z:76,yaw:-.02,pitch:.2,vx:0,vz:0,eye:1.62,bob:0,stepPh:0,y:0};
+const keys={};
+const LIMIT_OFF=1.05,LIMIT_TRAIL=2.25;
+function blockedMove(ox,oz,nx,nz){const d=Math.hypot(nx-ox,nz-oz);if(d<1e-5)return false;const dh=terrainH(nx,nz)-terrainH(ox,oz);if(dh<=0)return false;
+  const lim=trailDist(nx,nz)<2.8?LIMIT_TRAIL:LIMIT_OFF;return dh/d>lim;}
+function resolve(p,r){
+  for(let it=0;it<2;it++){
+    for(const b of colliders){const cx=clamp(p.x,b.x0,b.x1),cz=clamp(p.z,b.z0,b.z1);const dx=p.x-cx,dz=p.z-cz,d2=dx*dx+dz*dz;
+      if(d2<r*r){if(d2>1e-9){const d=Math.sqrt(d2);p.x=cx+dx/d*r;p.z=cz+dz/d*r;}else{const l=p.x-b.x0,ri=b.x1-p.x,tp=p.z-b.z0,bt=b.z1-p.z,m=Math.min(l,ri,tp,bt);
+        if(m===l)p.x=b.x0-r;else if(m===ri)p.x=b.x1+r;else if(m===tp)p.z=b.z0-r;else p.z=b.z1+r;}}}
+    for(const c of circles){const dx=p.x-c.x,dz=p.z-c.z,d=Math.hypot(dx,dz),m=c.r+r;if(d<m&&d>1e-6){p.x=c.x+dx/d*m;p.z=c.z+dz/d*m;}}
+    for(const s of segs){const dx=s.bx-s.ax,dz=s.bz-s.az,L=dx*dx+dz*dz;let t=L?((p.x-s.ax)*dx+(p.z-s.az)*dz)/L:0;t=clamp(t,0,1);const qx=s.ax+dx*t,qz=s.az+dz*t;const ex=p.x-qx,ez=p.z-qz,d=Math.hypot(ex,ez),m=s.r+r;if(d<m&&d>1e-6){p.x=qx+ex/d*m;p.z=qz+ez/d*m;}}
+    for(let gx=Math.floor((p.x-2)/TG);gx<=Math.floor((p.x+2)/TG);gx++)for(let gz=Math.floor((p.z-2)/TG);gz<=Math.floor((p.z+2)/TG);gz++){const a=treeGrid.get(gx+','+gz);if(!a)continue;
+      for(const [x,z,rr2] of a){const dx=p.x-x,dz=p.z-z,d=Math.hypot(dx,dz),m=rr2+r;if(d<m&&d>1e-6){p.x=x+dx/d*m;p.z=z+dz/d*m;}}}
+    for(const n of npcs){const dx=p.x-n.pos.x,dz=p.z-n.pos.z,d=Math.hypot(dx,dz),m=n.r+r;if(d<m&&d>1e-6&&Math.abs(n.y-terrainH(p.x,p.z))<1.5){p.x=n.pos.x+dx/d*m;p.z=n.pos.z+dz/d*m;}}
+  }
+  p.x=clamp(p.x,-220,220);p.z=clamp(p.z,-320,100);}
+
+/* ---------------- Mini ink painting (painter's paper & finale) ---------------- */
+function drawInk(c,st){
+  const g=c.getContext('2d'),W=c.width,H=c.height;const save=_s;_s=1751;
+  g.fillStyle='#ece2c8';g.fillRect(0,0,W,H);for(let i=0;i<900;i++){g.fillStyle='rgba(150,130,90,'+rr(.03,.08)+')';g.fillRect(rnd()*W,rnd()*H,rr(1,6),rr(.5,1.5));}
+  g.lineCap='round';
+  function massif(cx,top,rx,ry,dark,n,w){ // rounded rock mass built from downward brush sweeps
+    g.save();g.beginPath();g.moveTo((cx-rx)*W,(top+ry)*H);g.bezierCurveTo((cx-rx)*W,(top-ry*.1)*H,(cx-rx*.35)*W,top*H,cx*W,top*H);g.bezierCurveTo((cx+rx*.35)*W,top*H,(cx+rx)*W,(top-ry*.1)*H,(cx+rx)*W,(top+ry)*H);g.closePath();g.clip();
+    for(let i=0;i<n;i++){const x=cx+rr(-rx,rx),y=top+rr(-.05,ry*.9);const L=rr(.08,.3)*H;g.strokeStyle='rgba(18,16,13,'+rr(dark*.45,dark)+')';g.lineWidth=rr(w*.4,w);
+      g.beginPath();g.moveTo(x*W,y*H);g.quadraticCurveTo(x*W+rr(-4,4),y*H+L*.5,x*W+rr(-6,6),y*H+L);g.stroke();}
+    g.restore();g.strokeStyle='rgba(18,16,13,.55)';g.lineWidth=W/260;g.beginPath();g.moveTo((cx-rx)*W,(top+ry)*H);g.bezierCurveTo((cx-rx)*W,(top-ry*.1)*H,(cx-rx*.35)*W,top*H,cx*W,top*H);g.bezierCurveTo((cx+rx*.35)*W,top*H,(cx+rx)*W,(top-ry*.1)*H,(cx+rx)*W,(top+ry)*H);g.stroke();}
+  function pine(x,y,s){g.strokeStyle='rgba(20,18,15,.85)';g.lineWidth=Math.max(1,s*.12);g.beginPath();g.moveTo(x,y);g.lineTo(x+rr(-1,1)*s*.1,y-s);g.stroke();
+    for(let k=0;k<3;k++){const yy=y-s*(.55+k*.18),r=s*(.42-k*.1);g.fillStyle='rgba(20,22,16,'+rr(.55,.85)+')';g.beginPath();g.ellipse(x,yy,r,r*.32,rr(-.1,.1),0,Math.PI*2);g.fill();}}
+  function grove(cx,cy,spread,n,size){for(let i=0;i<n;i++){const x=(cx+(rnd()+rnd()-1)*spread)*W,y=(cy+(rnd()+rnd()-1)*spread*.25)*H;pine(x,y,size*rr(.7,1.2)*H);}}
+  function dots(cx,cy,rx,ry,n,a){for(let i=0;i<n;i++){const x=(cx+(rnd()+rnd()-1)*rx)*W,y=(cy+(rnd()+rnd()-1)*ry)*H;g.fillStyle='rgba(20,22,16,'+rr(a*.5,a)+')';g.beginPath();g.ellipse(x,y,rr(W/260,W/150),rr(W/420,W/260),rr(-.4,.4),0,Math.PI*2);g.fill();}}
+  // faint underdrawing of the whole mountain
+  g.strokeStyle='rgba(60,50,40,.22)';g.lineWidth=W/420;g.beginPath();g.moveTo(.22*W,.62*H);g.bezierCurveTo(.22*W,-.02*H,.62*W,-.02*H,.62*W,.62*H);g.stroke();
+  if(st.seon){massif(.13,.34,.13,.3,.6,260,W/110);grove(.12,.6,.1,14,.06);}
+  if(st.beom){massif(.82,.38,.15,.28,.55,240,W/110);grove(.83,.62,.12,16,.06);}
+  if(st.summit)massif(.42,-.04,.21,.64,.85,900,W/62);
+  if(st.chima){g.save();g.beginPath();g.ellipse(.5*W,.3*H,.07*W,.26*H,0,0,Math.PI*2);g.clip();for(let i=0;i<220;i++){const x=rr(.43,.57),y=rr(.04,.55);g.strokeStyle='rgba(10,9,8,'+rr(.4,.9)+')';g.lineWidth=rr(W/90,W/45);g.beginPath();g.moveTo(x*W,y*H);g.lineTo(x*W+rr(-3,3),y*H+rr(.1,.25)*H);g.stroke();}g.restore();}
+  if(st.suseong){for(const x of [.33,.5]){g.strokeStyle='rgba(236,226,200,.95)';g.lineWidth=W/220;g.beginPath();g.moveTo(x*W,.18*H);g.quadraticCurveTo((x+.015)*W,.4*H,(x-.01)*W,.62*H);g.stroke();}
+    grove(.28,.86,.12,18,.07);}
+  if(st.all){grove(.55,.9,.18,26,.075);grove(.92,.82,.06,10,.07);dots(.45,.78,.3,.06,160,.5);
+    g.fillStyle='rgba(20,18,15,.9)';g.beginPath();g.moveTo(.72*W,.83*H);g.quadraticCurveTo(.78*W,.775*H,.84*W,.83*H);g.lineTo(.83*W,.85*H);g.lineTo(.73*W,.85*H);g.closePath();g.fill();
+    g.fillStyle='rgba(236,226,200,.95)';g.fillRect(.745*W,.85*H,.07*W,.03*H);g.strokeStyle='rgba(20,18,15,.7)';g.lineWidth=1;g.strokeRect(.745*W,.85*H,.07*W,.03*H);}
+  // mist: unpainted paper drifting across the waist and the foot of the mountain
+  const mistA=st.all?.95:.6;
+  for(const [y,h,amp] of [[.635,.085,.025],[.78,.06,.03],[.4,.035,.02]]){for(let pass=0;pass<5;pass++){const k=1-pass*.18;g.fillStyle='rgba(236,226,200,'+(mistA*.3)+')';
+    g.beginPath();g.moveTo(-.02*W,(y-h*k)*H);for(let x=0;x<=1.04;x+=.04)g.lineTo(x*W,(y-h*k+Math.sin(x*8+y*21+pass)*amp)*H);for(let x=1.04;x>=-.04;x-=.04)g.lineTo(x*W,(y+h*k+Math.sin(x*6+y*13-pass)*amp)*H);g.fill();}}
+  if(st.all){g.fillStyle='rgba(20,18,15,.88)';g.font=(W/24)+'px "Song Myung","Noto Serif KR",serif';g.textAlign='center';
+    const tx=.94*W;['仁','王','霽','色'].forEach((ch,i)=>g.fillText(ch,tx,(.12+i*.085)*H));
+    g.fillStyle='#b3312a';g.fillRect(.92*W,.47*H,W*.04,W*.04);g.fillStyle='#f4ead8';g.font='bold '+(W/50)+'px serif';g.fillText('謙',.94*W,.47*H+W*.027);}
+  _s=save;}
+function refreshPaper(){const st={};for(const s of SIGHTS)st[s.id]=s.told;st.all=S.quest>=2;drawInk(paperCanvas,st);paperTex.needsUpdate=true;}
+
+/* ---------------- Game state ---------------- */
+const S={quest:0,friendGot:false,herbs:{},herbQuest:0,medicine:false,medGiven:false,met:new Set(),stories:new Set(),done:{},photos:[],photoN:0,filter:true,mist:1,finaleT:-1,yaho:0,wallWalk:0};
+HERBS.forEach(h=>S.herbs[h.id]=false);
+let saveT=0;
+const CHECKS=[['falls','폭포 세 곳 모두 보기'],['bridge','기린교 건너기'],['wall','한양도성 성곽길 걷기'],['look','꼭대기에서 한양 내려다보기'],
+  ['spring','약수 한 모금 마시기'],['magpie','까치에게 인사하기'],['yaho','꼭대기에서 크게 외치기'],['photo','스케치북에 첫 장면 담기']];
+const BARKS={painter:['안개가 좀처럼 걷히질 않는군.','먹을 너무 아끼면 안 되지.','저 바위, 비에 젖으니 더 검구나.'],friend:['콜록… 산은 잘 있는가.','창 너머로 산 냄새가 나는군.'],
+  boy:['쓱싹쓱싹.','비 그치니 마당이 엉망이네.'],woodcutter:['어이차!','오늘은 나무가 젖어서 무겁네.'],washer:['물이 많이 불었네.','계곡 물이 차다.'],
+  grandma:['어디 보자, 이게 도라지인가.','허리야…'],monk:['나무아미타불.','똑, 똑, 똑.'],scholar1:['비 갠 산이라… 시 한 수 나오겠군.','저기 저 바위 좀 보게.'],
+  scholar2:['선배님, 같이 가시지요.','과거는 언제 붙으려나.'],soldier:['이상 없음!','성곽에 이끼가 끼었군.']};
+
+/* ---------------- Audio ---------------- */
+const AU={ctx:null,on:true};
+function midiF(m){return 440*Math.pow(2,(m-69)/12);}
+const PENTA=[51,53,56,58,60,63,65,68,70,72];
+function initAudio(){if(AU.ctx)return;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;const ctx=AU.ctx=new AC();
+  AU.master=ctx.createGain();AU.master.gain.value=AU.on?.85:0;AU.master.connect(ctx.destination);
+  AU.music=ctx.createGain();AU.music.gain.value=.5;const dl=ctx.createDelay();dl.delayTime.value=.33;const fb=ctx.createGain();fb.gain.value=.28;AU.music.connect(dl);dl.connect(fb);fb.connect(dl);dl.connect(AU.master);AU.music.connect(AU.master);
+  const wb=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate),wd=wb.getChannelData(0);for(let i=0;i<wd.length;i++)wd[i]=Math.random()*2-1;AU.white=wb;
+  const mk=(type,f,q)=>{const s=ctx.createBufferSource();s.buffer=wb;s.loop=true;const fl=ctx.createBiquadFilter();fl.type=type;fl.frequency.value=f;fl.Q.value=q||.7;const g=ctx.createGain();g.gain.value=0;s.connect(fl);fl.connect(g);g.connect(AU.master);s.start();return g;};
+  AU.water=mk('bandpass',1100,.6);AU.wind=mk('lowpass',420,.5);
+  AU.next=ctx.currentTime+.5;AU.bird=ctx.currentTime+3;}
+function pluck(m,t,vol){const ctx=AU.ctx;const f=midiF(m);const g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.008);g.gain.exponentialRampToValueAtTime(.0008,t+2.2);
+  const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(3200,t);lp.frequency.exponentialRampToValueAtTime(700,t+1.2);lp.connect(g);g.connect(AU.music);
+  for(const [type,mul,a] of [['triangle',1,1],['sine',2,.35],['sine',3.01,.12]]){const o=ctx.createOscillator();o.type=type;o.frequency.setValueAtTime(f*mul*1.012,t);o.frequency.exponentialRampToValueAtTime(f*mul,t+.12);
+    if(rnd()<.35){o.frequency.setValueAtTime(f*mul,t+.5);o.frequency.linearRampToValueAtTime(f*mul*1.03,t+.75);o.frequency.linearRampToValueAtTime(f*mul,t+1);}
+    const og=ctx.createGain();og.gain.value=a;o.connect(og);og.connect(lp);o.start(t);o.stop(t+2.3);}}
+let phrase=[];
+function scheduleMusic(){const ctx=AU.ctx;if(!ctx||ctx.state!=='running')return;if(AU.next<ctx.currentTime-1)AU.next=ctx.currentTime+.1;
+  while(AU.next<ctx.currentTime+.3){if(!phrase.length){if(rnd()<.3){AU.next+=rr(1.5,3.5);let i=Math.floor(rr(2,7));for(let k=0;k<rr(3,7);k++){i=clamp(i+pick([-2,-1,-1,1,1,2]),0,PENTA.length-1);phrase.push(PENTA[i]);}continue;}
+      let i=Math.floor(rr(2,7));for(let k=0;k<rr(3,7);k++){i=clamp(i+pick([-2,-1,-1,1,1,2]),0,PENTA.length-1);phrase.push(PENTA[i]);}}
+    const m=phrase.shift();pluck(m,AU.next,.09);if(rnd()<.18)pluck(m-12,AU.next,.05);AU.next+=pick([.45,.45,.9,.9,1.35]);}}
+function birds(){const ctx=AU.ctx;if(ctx.currentTime<AU.bird)return;AU.bird=ctx.currentTime+rr(3,9);if(player.y>85||!AU.on)return;const t=ctx.currentTime;
+  for(let k=0;k<Math.floor(rr(2,5));k++){const o=ctx.createOscillator();o.type='sine';const g=ctx.createGain();const t0=t+k*.13;const f=rr(2600,3800);o.frequency.setValueAtTime(f,t0);o.frequency.exponentialRampToValueAtTime(f*rr(.7,1.3),t0+.08);
+    g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.025,t0+.01);g.gain.exponentialRampToValueAtTime(.0005,t0+.1);o.connect(g);g.connect(AU.master);o.start(t0);o.stop(t0+.12);}}
+function sfxStep(){const ctx=AU.ctx;if(!ctx||!AU.on)return;const s=ctx.createBufferSource();s.buffer=AU.white;const f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=rr(500,800);
+  const g=ctx.createGain();const t=ctx.currentTime;g.gain.setValueAtTime(.18,t);g.gain.exponentialRampToValueAtTime(.001,t+.1);s.connect(f);f.connect(g);g.connect(AU.master);s.start(t,rr(0,1.5),.12);}
+function sfxBell(){const ctx=AU.ctx;if(!ctx)return;const t=ctx.currentTime;for(const [m,a] of [[72,.12],[79,.06],[84.3,.04]]){const o=ctx.createOscillator();o.type='sine';o.frequency.value=midiF(m);const g=ctx.createGain();
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(a,t+.01);g.gain.exponentialRampToValueAtTime(.0005,t+2.4);o.connect(g);g.connect(AU.master);o.start(t);o.stop(t+2.5);}}
+function sfxShutter(){const ctx=AU.ctx;if(!ctx||!AU.on)return;const t=ctx.currentTime;for(const o of [0,.07]){const sn=ctx.createBufferSource();sn.buffer=AU.white;const f=ctx.createBiquadFilter();f.type='highpass';f.frequency.value=2500;const g=ctx.createGain();
+  g.gain.setValueAtTime(.22,t+o);g.gain.exponentialRampToValueAtTime(.001,t+o+.05);sn.connect(f);f.connect(g);g.connect(AU.master);sn.start(t+o,rr(0,1.5),.06);}}
+function sfxYaho(){const ctx=AU.ctx;if(!ctx)return;const t0=ctx.currentTime;
+  for(const [delay,amp] of [[0,.2],[.75,.08],[1.5,.035]]){for(const [st,f0,f1,dur] of [[0,330,420,.28],[.32,440,300,.5]]){const t=t0+delay+st;const o=ctx.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(f0,t);o.frequency.linearRampToValueAtTime(f1,t+dur);
+    const bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=900;bp.Q.value=2.5;const g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(amp,t+.04);g.gain.linearRampToValueAtTime(0,t+dur);
+    o.connect(bp);bp.connect(g);g.connect(AU.master);o.start(t);o.stop(t+dur+.05);}}}
+function sfxDrink(){const ctx=AU.ctx;if(!ctx)return;const t=ctx.currentTime;for(let k=0;k<3;k++){const o=ctx.createOscillator();o.type='sine';const g=ctx.createGain();const tt=t+k*.32;o.frequency.setValueAtTime(260,tt);o.frequency.exponentialRampToValueAtTime(520,tt+.12);
+  g.gain.setValueAtTime(0,tt);g.gain.linearRampToValueAtTime(.08,tt+.02);g.gain.exponentialRampToValueAtTime(.001,tt+.18);o.connect(g);g.connect(AU.master);o.start(tt);o.stop(tt+.2);}}
+let fallPts=[];falls.forEach(f=>{for(let i=0;i<f.pts.length;i+=3)fallPts.push(f.pts[i]);});
+function updateAudio(){if(!AU.ctx)return;scheduleMusic();birds();const t=AU.ctx.currentTime;
+  let md=1e9;for(const p of fallPts){const d=Math.hypot(player.x-p[0],player.z-p[1]);if(d<md)md=d;}
+  AU.water.gain.setTargetAtTime(.22*clamp(1-md/45,0,1),t,.3);AU.wind.gain.setTargetAtTime(.04+.22*clamp((player.y-40)/90,0,1),t,.5);}
+
+/* ---------------- UI helpers ---------------- */
+function toast(html,ms){const d=document.createElement('div');d.className='toastItem';d.innerHTML=html;$('toast').appendChild(d);
+  setTimeout(()=>{d.style.transition='opacity .5s';d.style.opacity='0';setTimeout(()=>d.remove(),520);},ms||3200);while($('toast').children.length>3)$('toast').firstChild.remove();}
+const foundN=()=>SIGHTS.filter(s=>s.found).length,toldN=()=>SIGHTS.filter(s=>s.told).length;
+function renderQuestCard(){
+  let title='비 갠 산을 그리다',txt,dots=true;const J=IS_TOUCH?'수첩 버튼':'수첩(J)';
+  if(S.quest===0)txt='마을 앞에 자리를 편 노화가에게 말을 걸어 보세요.';
+  else if(S.quest===1){const f=foundN(),t=toldN();txt=f===5&&t<5?'다섯 경치를 모두 보았어요. 노화가에게 돌아가 들려주세요.':f>t?'본 경치를 노화가에게 들려주면 그림이 채워져요. 남은 경치는 '+J+'의 지도에 있어요.':'산에 올라 다섯 경치를 찾아 표석을 살펴보세요. 경치를 볼 때마다 안개가 걷혀요.';}
+  else if(S.quest===2){title='벗에게 그림을';dots=false;txt='완성된 그림을 기와집 사랑채의 벗에게 가져다주세요.';}
+  else{dots=false;if(S.herbQuest===1){title='할머니의 약초';const left=HERBS.filter(h=>!S.herbs[h.id]).map(h=>h.name);txt=left.length?'산에서 '+left.join(', ')+'을(를) 찾아 주세요.':'약초를 모두 찾았어요. 할머니에게 돌아가세요.';}
+    else if(S.herbQuest===2&&!S.medGiven){title='할머니의 약초';txt='달인 탕약을 사랑채의 벗에게 가져다주세요.';}
+    else{title='비 갠 인왕산';const left=CHECKS.filter(c=>!S.done[c[0]]).length;txt=(S.herbQuest===0?'계곡 위에서 약초를 캐는 할머니가 도움이 필요해 보여요. ':'')+(left?'아직 해 보지 않은 산행의 즐거움이 '+left+'가지 남았어요. ':'')+J+'에서 지도와 체크리스트를 볼 수 있어요.';}}
+  $('qTitle').textContent=title;$('questText').textContent=txt;$('sights').hidden=!dots;
+  if(dots)$('sights').innerHTML=SIGHTS.map(s=>'<span class="dot'+(s.told?' given':s.found?' have':'')+'" title="'+s.name+(s.told?' · 그림에 담김':s.found?' · 봄':'')+'"></span>').join('')+'<span id="sightCount">'+foundN()+'/5</span>';}
+function updateQuestHUD(){renderQuestCard();saveT=.6;if(!$('journal').hidden)renderJournal();checkAll();}
+function done(k){if(S.done[k])return;S.done[k]=true;const c=CHECKS.find(x=>x[0]===k);if(c)toast('<b>산행</b>'+c[1]+' ✓',3000);updateQuestHUD();}
+function checkAll(){if(!S.done.__all&&progress()===100){S.done.__all=true;setTimeout(()=>toast('<b>인왕산</b>산의 모든 이야기를 만났어요. 수고하셨습니다!',5200),700);}}
+
+/* ---------------- Dialog system ---------------- */
+let dlg=null;let state='start';
+const dEl=$('dialog'),dName=$('dName'),dRole=$('dRole'),dText=$('dText'),dChoices=$('dChoices'),dNextEl=$('dNext');
+function openDialog(who,script){if(dlg)return;state='dialog';dlg={who,script,node:null,full:'',shown:0,typing:false};
+  if(who.npc){who.npc.talking=true;if(!S.met.has(who.npc.id)){S.met.add(who.npc.id);updateQuestHUD();}}
+  dName.textContent=who.name;dRole.textContent=who.role||'';dEl.hidden=false;$('prompt').hidden=true;if(document.pointerLockElement)document.exitPointerLock();gotoNode(script.s);}
+function gotoNode(id){if(!id){closeDialog();return;}const node=dlg.script.n[id];if(!node){closeDialog();return;}if(node.fx)node.fx();
+  dlg.node=node;dlg.full=typeof node.t==='function'?node.t():node.t;dlg.shown=0;dlg.typing=true;dText.textContent='';dChoices.innerHTML='';dNextEl.hidden=true;
+  dlg.choices=typeof node.c==='function'?node.c():node.c||null;}
+function finishTyping(){dlg.shown=dlg.full.length;dText.textContent=dlg.full;dlg.typing=false;showChoices();}
+function showChoices(){dChoices.innerHTML='';if(dlg.choices&&dlg.choices.length){dNextEl.hidden=true;dlg.choices.forEach((ch,i)=>{const b=document.createElement('button');b.id='dc'+i;b.innerHTML='<span>'+(i+1)+'.</span>'+ch[0];b.onclick=e=>{e.stopPropagation();choose(i);};dChoices.appendChild(b);});}
+  else{dNextEl.hidden=false;dNextEl.textContent=(nextOf(dlg.node,true)?'E 또는 클릭으로 계속 ▸':'E 또는 클릭으로 닫기 ▪');}}
+function nextOf(node,peek){if(typeof node.next==='function')return peek?true:node.next();return node.next||null;}
+function choose(i){if(!dlg||dlg.typing)return;const ch=dlg.choices&&dlg.choices[i];if(!ch)return;if(ch[2])ch[2]();gotoNode(ch[1]);}
+function advance(){if(!dlg)return;if(dlg.typing){finishTyping();return;}if(dlg.choices&&dlg.choices.length)return;gotoNode(nextOf(dlg.node,false));}
+function closeDialog(){if(!dlg)return;if(dlg.who.npc)dlg.who.npc.talking=false;dlg=null;dEl.hidden=true;if(state==='dialog')state='play';relock();}
+dEl.addEventListener('click',()=>advance());
+function typeTick(dt){if(!dlg||!dlg.typing)return;dlg.shown+=dt*50;const n=Math.min(dlg.full.length,Math.floor(dlg.shown));dText.textContent=dlg.full.slice(0,n);if(n>=dlg.full.length){dlg.typing=false;showChoices();}}
+
+/* ---------------- Dialog content ---------------- */
+const DLG={};
+function tellNodes(n){const fresh=SIGHTS.filter(s=>s.found&&!s.told);if(!fresh.length)return null;fresh.forEach(s=>s.told=true);refreshPaper();updateQuestHUD();sfxBell();
+  const names=fresh.map(s=>s.name).join(', ');const all=SIGHTS.every(s=>s.told);
+  n.tell={t:names+'! 그래, 그 경치가 눈에 선하구먼. '+fresh.map(s=>s.desc.split('.')[0]).join(' ')+'. 자, 붓이 움직이는 걸 보게.',next:all?'fin':'prog'};return 'tell';}
+DLG.painter=function(){const n={};
+  if(S.quest>=2){n.a={t:S.quest===2?'그림은 벗에게 전했는가? 사랑채에 누워 있으니 대문으로 들어가 보게.':pick(['산이 개니 내 마음도 개는구먼. 고맙네.','먹은 쌓고, 안개는 비워 두는 법이지. 다음엔 자네가 한번 그려 보게.','저 바위가 오늘따라 유난히 검고 무겁구먼. 비 갠 뒤라 그렇지.'])};return {s:'a',n};}
+  if(S.quest===0){
+    n.a={t:'어허, 젊은이. 사흘 내린 장맛비가 이제야 그쳤네. 그런데 안개가 산허리를 감싸고 놓아주질 않는구먼.',next:'b'};
+    n.b={t:'저 사랑채에 내 오랜 벗이 앓아누워 있다네. 비 갠 인왕산을 그려 보여 주면 기운을 차릴 것 같은데, 이 늙은 다리로는 산에 오를 수가 없어.',c:[['제가 대신 올라가 볼까요?','c'],['무엇을 그리시려고요?','d']]};
+    n.d={t:'비에 젖은 바위는 먹을 겹겹이 쌓아 검게, 안개는 종이를 비워서 하얗게. 그런데 안개 너머가 보이질 않으니 붓을 댈 수가 없네.',next:'c'};
+    n.c={t:'산에 올라 다섯 경치를 눈에 담아 오게. 수성동 계곡, 선바위, 꼭대기, 치마바위, 그리고 범바위. 경치마다 이름을 새긴 표석이 서 있을 걸세.',
+      c:[['다녀오겠습니다','e',()=>{S.quest=1;updateQuestHUD();toast('<b>비 갠 산을 그리다</b>다섯 경치를 찾아 표석을 살펴보세요.',3800);}],['조금 있다가요','f']]};
+    n.e={t:'고맙네. 산길은 마을 뒤 계곡에서 시작하네. 길을 벗어나면 바위가 가팔라 오르기 어려우니 흙길을 따라가게. 경치를 보고 오면 내게 들려주게나.',next:()=>tellNodes(n)};
+    n.f={t:'그러게나. 안개는 서두르지 않으니까.'};}
+  else{n.a={t:'산은 어떻던가?',next:()=>{const r=tellNodes(n);return r||'prog';}};}
+  n.prog={t:()=>{const left=SIGHTS.filter(s=>!s.found);return left.length?'아직 '+left.map(s=>s.name).join(', ')+'이(가) 남았네. '+left[0].hint:'다 보고 왔으면 어서 들려주게.';},c:[['다녀오겠습니다',null]]};
+  n.fin={t:'다섯 경치가 모두 모였네. 이제 안개 너머가 보이는구먼. 잠깐, 산을 보게. 안개가 걷히고 있어!',next:()=>{setTimeout(runFinale,250);return null;}};
+  return {s:'a',n};};
+DLG.friend=function(){const n={};
+  if(S.quest===2){n.a={t:'(벗에게 노화가의 그림을 펼쳐 보인다.)',next:'b'};
+    n.b={t:'…허허, 인왕산이로구먼. 비에 젖은 바위가 이리 검고, 안개는 이리 희구나. 산이 저렇게 개었으니 내 몸도 곧 개겠지.',next:'c'};
+    n.c={t:'그 친구한테 전해 주게. 그림을 보니 숨이 한결 편하다고. 그리고 자네도, 산을 대신 걸어 줘서 고맙네.',fx:()=>{S.quest=3;S.friendGot=true;sfxBell();toast('<b>인왕제색도</b>그림이 벗에게 닿았습니다. 이야기 완성!',4200);updateQuestHUD();}};
+    return {s:'a',n};}
+  if(S.herbQuest===2&&!S.medGiven){n.a={t:'(할머니가 달인 탕약을 건넨다.)',next:'b'};n.b={t:'쓰구먼… 그래도 산 냄새가 나는 약이야. 고맙네. 기운이 조금 도는 것 같군.',fx:()=>{S.medGiven=true;sfxBell();toast('<b>할머니의 약초</b>탕약을 전했다.',3000);updateQuestHUD();}};return {s:'a',n};}
+  n.a={t:S.quest===3?pick(['그림을 머리맡에 걸어 두었네. 아침마다 산이 갠다네.','자네 덕분에 오늘은 죽을 다 먹었어. 허허.']):'콜록… 손님이 왔구먼. 비가 그쳤다지? 창을 열어도 안개 때문에 산이 안 보여 답답하네. 그 친구는 앞마당에서 산만 보고 있고.'};
+  return {s:'a',n};};
+DLG.boy=function(){return {s:'a',n:{a:{t:pick(['나리께서 아프셔서 마당을 매일 쓸어요. 깨끗해야 병이 빨리 나신대요.','산에 가시려고요? 뒤쪽 계곡 길로 가세요. 돌다리를 건너면 산길이 나와요.','까치가 마당에서 울면 반가운 손님이 온대요. 손님이 오셨네요!'])}}};};
+DLG.woodcutter=function(){return {s:'a',n:{a:{t:'이 산은 앞쪽이 온통 바위라 정면으로는 못 올라가오. 왼쪽 능선을 돌아 뒤로 올라가야 꼭대기에 닿지. 오른쪽 끝 범바위에서 보는 마을 경치도 좋소.'}}};};
+DLG.washer=function(){return {s:'a',n:{a:{t:'비가 사흘이나 와서 계곡물이 많이 불었어요. 수성동 돌다리 위에서 보면 물이 하얗게 부서져요. 저 위쪽 바위에도 비 올 때만 생기는 폭포가 여러 줄 생겼지요.'}}};};
+DLG.grandma=function(){const n={};
+  if(S.herbQuest===0){n.a={t:'아이고, 허리야. 사랑채 나리 탕약을 지으려는데 약초가 모자라는구먼. 도라지, 더덕, 당귀. 비 온 뒤라 잎이 잘 보일 텐데 다리가 말을 안 들어.',
+    c:[['제가 찾아볼게요','b',()=>{S.herbQuest=1;toast('<b>할머니의 약초</b>도라지, 더덕, 당귀를 찾아 주세요. 수첩 지도에 대강 표시돼요.',3800);updateQuestHUD();}],['다음에요','z']]};
+    n.b={t:'고맙구려. 도라지는 이 계곡 위쪽 비탈에, 더덕은 범바위 아래 숲에, 당귀는 꼭대기 너머 뒤쪽 비탈에 있을 게야. 꽃이 피어 있으니 보면 알 걸세.'};n.z={t:'그려, 그려.'};}
+  else if(S.herbQuest===1){const left=HERBS.filter(h=>!S.herbs[h.id]);
+    if(left.length)n.a={t:'아직 '+left.map(h=>h.name).join(', ')+'이(가) 없구먼. 천천히 다녀오게.'};
+    else{n.a={t:'다 찾아왔구먼! 어디 보자… 이 정도면 탕약 한 첩은 넉넉히 달이겠네.',next:'b'};n.b={t:'(할머니가 약초를 다려 탕약 한 그릇을 건넨다.) 식기 전에 사랑채 나리께 갖다 드리게.',fx:()=>{S.herbQuest=2;S.medicine=true;sfxBell();updateQuestHUD();}};}}
+  else n.a={t:S.medGiven?'나리께서 약을 드셨다니 다행이구먼. 산이 사람을 살리는 게지.':'어서 사랑채 나리께 약을 갖다 드리게.'};
+  return {s:'a',n};};
+DLG.monk=function(){return {s:'a',n:{a:{t:'이 바위를 선바위라 하지요. 장삼을 걸친 스님이 참선하는 모습 같다 하여 선(禪) 자를 씁니다. 아래 약수 한 모금 하고 가시지요. 산을 오르는 다리에 힘이 붙습니다.'}}};};
+DLG.scholar1=function(){return {s:'a',n:{a:{t:'비 갠 산을 보러 오셨소? 저 넓적한 바위를 치마바위라 하지. 쫓겨난 왕비가 붉은 치마를 펼쳐 두었다는 이야기가 있소. 오늘은 비에 젖어 먹물처럼 검구려.',
+  c:[['시 한 수 들려주세요','b'],['좋은 산행 되세요','z']]},b:{t:'"사흘 비 그친 산, 바위는 먹을 머금고 / 흰 구름은 허리띠처럼 산을 두르네." …음, 아직 다듬어야겠소.'},z:{t:'그대도.'}}};};
+DLG.scholar2=function(){return {s:'a',n:{a:{t:'선배님을 따라 산에 왔는데, 꼭대기에서 내려다보니 한양 도성이 손바닥만 하더군요. 저 안에서 과거를 보려고 애쓰는 게 문득 우습기도 합니다.'}}};};
+DLG.soldier=function(){return {s:'a',n:{a:{t:'이 성곽이 한양을 빙 둘러싸고 있소. 산길과 만나는 곳마다 작은 문이 있으니 그리로 드나드시오. 꼭대기에서 동쪽을 보면 궁궐 지붕이 보일 게요.'}}};};
+DLG.magpie=function(){return {s:'a',n:{a:{t:'(까치가 깍깍 운다. 반가운 손님이 왔다는 듯 꼬리를 까딱인다.)',fx:()=>done('magpie')}}};};
+DLG.spring=function(){return {s:'a',n:{a:{t:'(바가지로 약수를 떠 마신다. 바위 틈에서 솟은 물이 시리도록 차다.)',fx:()=>{sfxDrink();done('spring');}}}};};
+function sightDialog(s){const n={};const first=!s.found;
+  if(first){s.found=true;sfxBell();const left=5-foundN();toast('<b>'+s.name+'</b>'+(left?'안개가 조금 걷혔다. 남은 경치 '+left+'곳':'다섯 경치를 모두 보았다. 노화가에게 돌아가자.'),3600);updateQuestHUD();}
+  n.a={t:'('+s.name+') '+s.desc+(S.quest===0&&first?' 이 경치를 누군가에게 들려주면 좋겠다.':''),c:s.id==='summit'?[['크게 외친다','y',()=>{sfxYaho();S.yaho++;done('yaho');}],['조용히 내려다본다',null]]:null};
+  n.y={t:'"야호―!" …호―, 호―. 메아리가 안개 속 골짜기를 돌아 돌아온다.'};return {s:'a',n};}
+function readStory(st){const first=!S.stories.has(st.id);S.stories.add(st.id);openDialog({name:'그림 이야기',role:st.title},{s:'a',n:{a:{t:st.t}}});
+  if(first){toast('<b>그림 이야기</b>'+st.title+' ('+S.stories.size+'/'+STORIES.length+')',3000);updateQuestHUD();}}
+
+/* ---------------- Interactions ---------------- */
+const tmpV=new T.Vector3(),fwd=new T.Vector3();
+const interactables=[];
+npcs.forEach(n=>interactables.push({kind:'npc',npc:n,name:n.name,get pos(){return tmpV.set(n.pos.x,n.y+n.h*.85,n.pos.z);},range:3}));
+SIGHTS.forEach(s=>interactables.push({kind:'sight',s,name:s.name,get pos(){return tmpV.set(s.x,s.py,s.z);},range:3.2}));
+STORIES.forEach(st=>{if(st.x!=null)interactables.push({kind:'story',st,name:st.title,get pos(){return tmpV.set(st.px,st.py,st.pz);},range:2.8});});
+HERBS.forEach(h=>interactables.push({kind:'herb',h,name:h.name,get pos(){return tmpV.set(h.x,terrainH(h.x,h.z)+.5,h.z);},range:2.6}));
+magpies.forEach(m=>interactables.push({kind:'magpie',m,name:'까치',get pos(){return tmpV.set(m.x,terrainH(m.x,m.z)+.3,m.z);},range:3.2}));
+interactables.push({kind:'spring',name:'약수터',get pos(){return tmpV.set(SPRING.x,terrainH(SPRING.x,SPRING.z)+.6,SPRING.z);},range:2.6});
+let target=null;
+function findTarget(){camera.getWorldDirection(fwd);let best=null,bs=-1e9;const cp=camera.position;
+  for(const it of interactables){if(it.kind==='herb'&&(it.h.taken||S.herbQuest!==1))continue;const p=it.pos;const dx=p.x-cp.x,dy=p.y-cp.y,dz=p.z-cp.z,d=Math.hypot(dx,dy,dz);if(d>it.range)continue;
+    const dot=(dx*fwd.x+dy*fwd.y+dz*fwd.z)/d;if(dot<(it.kind==='npc'||it.kind==='magpie'?.78:.68))continue;const sc=dot*2-d*.15+(it.kind==='npc'?.3:0);if(sc>bs){bs=sc;best=it;}}return best;}
+function promptFor(t){return t.kind==='npc'?t.name+'에게 말 걸기':t.kind==='sight'?'표석 살펴보기 · '+t.name:t.kind==='story'?'그림 이야기 읽기 · '+t.name:t.kind==='herb'?t.name+' 캐기':t.kind==='magpie'?'까치에게 인사하기':'약수 마시기';}
+function shortFor(t){return t.kind==='npc'?'말 걸기':t.kind==='sight'?'살펴보기':t.kind==='story'?'읽기':t.kind==='herb'?'캐기':t.kind==='magpie'?'인사':'마시기';}
+function interact(){if(state==='dialog'){advance();return;}if(state!=='play'||!target)return;
+  const t=target;
+  if(t.kind==='npc'){const f=DLG[t.npc.id];if(f)openDialog({name:t.npc.name,role:t.npc.role,npc:t.npc},f());}
+  else if(t.kind==='sight')openDialog({name:'표석',role:t.s.name},sightDialog(t.s));
+  else if(t.kind==='story')readStory(t.st);
+  else if(t.kind==='herb'){t.h.taken=true;S.herbs[t.h.id]=true;scene.remove(t.h.mesh);sfxBell();const left=HERBS.filter(h=>!S.herbs[h.id]).length;toast('<b>'+t.h.name+'</b>'+(left?'를 캤다. 남은 약초 '+left+'가지':'까지 모두 캤다. 할머니에게 돌아가자.'),3000);updateQuestHUD();}
+  else if(t.kind==='magpie')openDialog({name:'까치',role:'기와집 앞마당'},DLG.magpie());
+  else if(t.kind==='spring')openDialog({name:'약수터',role:'선바위 아래'},DLG.spring());}
+
+/* ---------------- Finale ---------------- */
+function runFinale(){S.quest=2;S.finaleT=0;refreshPaper();updateQuestHUD();sfxBell();S.stories.add('ink');
+  setTimeout(()=>{if(dlg)closeDialog();drawInk($('finaleCv'),{suseong:1,seon:1,summit:1,chima:1,beom:1,all:1});state='finale';$('finale').hidden=false;if(document.pointerLockElement)document.exitPointerLock();},4200);}
+$('finaleBtn').onclick=()=>{$('finale').hidden=true;state='play';toast('<b>그림 이야기</b>먹을 쌓고, 종이를 비우다 ('+S.stories.size+'/'+STORIES.length+')',3200);relock();};
+
+/* ---------------- Save ---------------- */
+const SAVE_KEY='inwang-save-1';
+function saveGame(){try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,quest:S.quest,found:SIGHTS.filter(s=>s.found).map(s=>s.id),told:SIGHTS.filter(s=>s.told).map(s=>s.id),
+  herbs:S.herbs,herbQuest:S.herbQuest,medicine:S.medicine,medGiven:S.medGiven,friendGot:S.friendGot,met:[...S.met],stories:[...S.stories],done:S.done}));}catch(e){}}
+function savePhotos(){for(let i=0;i<13;i++){try{localStorage.setItem(SAVE_KEY+'-p',JSON.stringify(S.photos.slice(i)));return;}catch(e){}}}
+function loadGame(){let d;try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return false;d=JSON.parse(raw);}catch(e){return false;}if(!d||d.v!==1)return false;
+  S.quest=d.quest|0;SIGHTS.forEach(s=>{s.found=(d.found||[]).includes(s.id);s.told=(d.told||[]).includes(s.id);});
+  HERBS.forEach(h=>{S.herbs[h.id]=!!(d.herbs&&d.herbs[h.id]);if(S.herbs[h.id]){h.taken=true;scene.remove(h.mesh);}});
+  S.herbQuest=d.herbQuest|0;S.medicine=!!d.medicine;S.medGiven=!!d.medGiven;S.friendGot=!!d.friendGot;S.met=new Set(d.met||[]);S.stories=new Set(d.stories||[]);S.done=d.done||{};
+  try{const ph=JSON.parse(localStorage.getItem(SAVE_KEY+'-p')||'[]');if(Array.isArray(ph)){S.photos=ph;S.photoN=ph.reduce((m,x)=>Math.max(m,x.n||0),0);}}catch(e){}
+  S.mist=S.quest>=2?.12:1-foundN()*.13;refreshPaper();return true;}
+
+/* ---------------- Progress & journal ---------------- */
+function progress(){let d=0,t=0;
+  t+=5;d+=toldN();t+=1;d+=S.quest>=3?1:0;t+=4;d+=HERBS.filter(h=>S.herbs[h.id]).length+(S.medGiven?1:0);
+  t+=STORIES.length;d+=STORIES.filter(x=>S.stories.has(x.id)).length;t+=PEOPLE.length;d+=PEOPLE.filter(x=>S.met.has(x.id)).length;t+=CHECKS.length;d+=CHECKS.filter(c=>S.done[c[0]]).length;
+  return Math.round(d/t*100);}
+function areaName(x,z){const h=terrainH(x,z);if(Math.hypot(x-HOUSE.x,z-HOUSE.z)<14)return '기와집';if(z>45)return '산 아래 들머리';if(h>118)return '인왕산 꼭대기';
+  if(Math.hypot(x+66,z+30)<26)return '수성동 계곡';if(x<-60)return '선바위 능선';if(x>50&&z<-95)return '치마바위 능선';if(x>45)return '범바위 능선';if(h<12)return '산 아래 마을';return '인왕산 중턱';}
+const TABS=['quest','map','people','story','sketch'];let jTab='quest',mapT=0;
+function esc(x){return String(x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+document.querySelectorAll('.jtabs button').forEach(b=>b.onclick=()=>{jTab=b.dataset.tab;renderJournal();});
+$('jClose').onclick=()=>closeJournal();$('journal').addEventListener('click',e=>{if(e.target.id==='journal')closeJournal();});
+function openJournal(tab){if(state!=='play')return;if(tab)jTab=tab;state='menu';$('prompt').hidden=true;if(document.pointerLockElement)document.exitPointerLock();$('journal').hidden=false;renderJournal();}
+function closeJournal(){$('journal').hidden=true;$('photoView').hidden=true;if(state==='menu')state='play';relock();}
+function boxLi(on,label){return '<li class="'+(on?'on':'')+'"><span class="box">'+(on?'✓':'')+'</span>'+label+'</li>';}
+function renderJournal(){
+  document.querySelectorAll('.jtabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===jTab));$('jProgress').textContent='산행 '+progress()+'%';let h='';
+  if(jTab==='quest'){const Q=S.quest;
+    h+='<div class="jsec"><h4>비 갠 산을 그리다</h4><div class="sub">'+(Q>=3?'완료':Q===0?'아직 시작 전':'진행 중')+'</div><p>'+(Q===0?'마을 앞에 자리를 편 노화가에게 말을 걸어 보세요.':'산에 올라 다섯 경치의 표석을 살펴보고, 노화가에게 들려주세요. 완성된 그림은 사랑채의 벗에게 전합니다.')+'</p><ul class="check">'+
+      SIGHTS.map(s=>boxLi(s.told,s.name+' <span class="sub">'+(s.told?'그림에 담김':s.found?'보았음':'아직')+'</span>')).join('')+boxLi(S.quest>=3,'벗에게 그림 전하기')+'</ul></div>';
+    h+='<div class="jsec"><h4>할머니의 약초</h4><div class="sub">'+(S.medGiven?'완료':S.herbQuest?'진행 중':'아직 시작 전')+'</div>'+(S.herbQuest===0?'<p>수성동 계곡 위쪽 비탈에서 약초를 캐는 할머니가 있어요.</p>':'<ul class="check">'+HERBS.map(x=>boxLi(S.herbs[x.id],x.name+' 캐기')).join('')+boxLi(S.medGiven,'벗에게 탕약 전하기')+'</ul>')+'</div>';
+    h+='<div class="jsec"><h4>산행의 즐거움</h4><div class="sub">'+CHECKS.filter(c=>S.done[c[0]]).length+' / '+CHECKS.length+'</div><ul class="check">'+CHECKS.map(c=>boxLi(S.done[c[0]],c[1])).join('')+'</ul></div>';}
+  else if(jTab==='map'){h='<div class="mapwrap"><canvas id="mapCv" width="460" height="560"></canvas><div class="legend">'+
+      '<div><span class="lg" style="background:var(--seal);color:#f8eee0">▲</span>지금 내 위치 · '+areaName(player.x,player.z)+'</div>'+
+      '<div><span class="lg" style="border:2px solid var(--seal);color:var(--seal)">!</span>지금 찾아가야 할 사람</div>'+
+      '<div><span class="lg" style="background:var(--ink);color:var(--paper)">石</span>경치 표석 (붉은색은 아직 못 본 곳)</div>'+
+      '<div><span class="lg" style="border:2px solid #6f8c86;color:#6f8c86">?</span>아직 읽지 않은 그림 이야기</div>'+
+      '<div><span class="lg"><span style="width:14px;height:3px;background:#a08a5a"></span></span>산길 (가파른 곳은 돌계단)</div>'+
+      '<div><span class="lg"><span style="width:14px;height:4px;background:#5a564c"></span></span>한양도성 성곽</div>'+
+      '<p class="sub">위쪽이 산 뒤편(서쪽), 아래쪽이 마을과 한양(동쪽)이에요. 지도는 열려 있는 동안 계속 움직입니다.</p></div></div>';}
+  else if(jTab==='people'){const n=PEOPLE.filter(x=>S.met.has(x.id)).length;
+    h='<p class="sub" style="margin:0 0 12px">'+n+' / '+PEOPLE.length+'명과 이야기를 나눴어요.</p><div class="people">'+PEOPLE.map(x=>{const met=S.met.has(x.id);
+      return '<div class="pc'+(met?'':' no')+'"><span class="av" style="background:'+(met?'linear-gradient(180deg,'+x.hat+' 0 40%,'+x.coat+' 40%)':'#d6cdb6')+'"></span><div style="min-width:0"><b>'+(met?esc(x.name):'???')+'</b><i>'+(met?esc(x.role):'아직 만나지 못한 사람')+'</i>'+(met?'<q>'+esc(BARKS[x.id][0])+'</q>':'')+'</div></div>';}).join('')+'</div>';}
+  else if(jTab==='story'){h='<p class="sub" style="margin:0 0 6px">산과 마을 곳곳에 붉은 낙관이 찍힌 나무 안내판이 있어요. 실제 그림과 화가에 대한 이야기입니다. ('+STORIES.filter(x=>S.stories.has(x.id)).length+' / '+STORIES.length+')</p>'+
+      STORIES.map(st=>{const r=S.stories.has(st.id);return '<article class="story'+(r?'':' no')+'"><h4>'+(r?esc(st.title):'아직 읽지 않은 이야기')+'</h4><div class="sub">'+esc(st.where)+'</div>'+(r?'<p>'+esc(st.t)+'</p>':'')+'</article>';}).join('');}
+  else{h=S.photos.length?'<p class="sub" style="margin:0 0 12px">'+S.photos.length+' / 12장 · 가장 최근 스케치가 앞에 있어요.</p><div class="sketches">'+S.photos.map((p2,i)=>'<button class="sk" data-i="'+i+'"><img src="'+p2.src+'" alt="습작 No.'+p2.n+'"><span>습작 No.'+p2.n+' · '+esc(p2.place)+'</span></button>').reverse().join('')+'</div>'
+      :'<p class="empty">'+(IS_TOUCH?'스케치 버튼':'C 키나 스케치 버튼')+'을 누르면 지금 보이는 장면이 수묵 그대로 스케치북에 담겨요. 최대 12장까지 보관됩니다.</p>';}
+  const B=$('jBody');B.innerHTML=h;if(jTab==='map')drawMap($('mapCv'));B.querySelectorAll('.sk').forEach(el=>el.onclick=()=>openPhoto(+el.dataset.i));}
+let pvIndex=-1;
+function openPhoto(i){const p2=S.photos[i];if(!p2)return;pvIndex=i;$('pvImg').src=p2.src;$('pvImg').alt='습작 No.'+p2.n;$('pvCap').textContent='습작 No.'+p2.n+' · '+p2.place;$('photoView').hidden=false;}
+$('pvClose').onclick=()=>{$('photoView').hidden=true;};
+$('pvDel').onclick=()=>{if(pvIndex>=0){S.photos.splice(pvIndex,1);savePhotos();}$('photoView').hidden=true;renderJournal();};
+$('photoView').addEventListener('click',e=>{if(e.target.id==='photoView')$('photoView').hidden=true;});
+const MX0=-170,MX1=150,MZ0=-300,MZ1=90;let mapBase=null;
+function drawMap(c){if(!c)return;const g=c.getContext('2d'),W=c.width,H=c.height,sx=W/(MX1-MX0),sz=H/(MZ1-MZ0);const mx=x=>(x-MX0)*sx,mz=z=>(z-MZ0)*sz;
+  if(!mapBase){mapBase=document.createElement('canvas');mapBase.width=W;mapBase.height=H;const b=mapBase.getContext('2d');const img=b.createImageData(W,H);
+    for(let j=0;j<H;j++)for(let i=0;i<W;i++){const x=MX0+i/sx,z=MZ0+j/sz;const h=terrainH(x,z),hx=terrainH(x+1.5,z)-h,hz=terrainH(x,z+1.5)-h;
+      let shade=clamp(.55-(hx*.6+hz*.35)*.35,0,1);let ink=clamp(h/150,0,1)*.55+(1-shade)*.45;if(domeMask(x,z)>.3&&h>60)ink=Math.min(1,ink+.18);
+      const contour=Math.abs((h/10)%1-.5)<.04&&h>4?.12:0;ink=clamp(ink+contour,0,1);
+      const p=(j*W+i)*4;img.data[p]=239-ink*200;img.data[p+1]=230-ink*196;img.data[p+2]=210-ink*186;img.data[p+3]=255;}
+    b.putImageData(img,0,0);
+    b.strokeStyle='#a08a5a';b.lineWidth=2.5;b.setLineDash([5,4]);for(const p of trailSegs){b.beginPath();p.forEach((q,i)=>i?b.lineTo(mx(q[0]),mz(q[1])):b.moveTo(mx(q[0]),mz(q[1])));b.stroke();}
+    b.setLineDash([]);b.strokeStyle='#5a564c';b.lineWidth=3.5;b.beginPath();wallPts.forEach((q,i)=>i?b.lineTo(mx(q[0]),mz(q[1])):b.moveTo(mx(q[0]),mz(q[1])));b.stroke();
+    b.strokeStyle='rgba(255,255,255,.85)';b.lineWidth=2;for(const f of falls){b.beginPath();f.pts.forEach((q,i)=>i?b.lineTo(mx(q[0]),mz(q[1])):b.moveTo(mx(q[0]),mz(q[1])));b.stroke();}
+    for(const [x0,x1,z0,z1,k] of MAPR){b.fillStyle=k==='yard'?'rgba(239,230,210,.6)':k==='giwa'?'#2c2b28':'#a8946e';b.fillRect(mx(x0),mz(z0),(x1-x0)*sx,(z1-z0)*sz);}
+    b.font='15px "Gowun Batang",serif';b.textAlign='center';b.fillStyle='#1d1b17';b.fillText('인왕산',mx(0),mz(-180));b.fillText('기와집',mx(HOUSE.x),mz(HOUSE.z+18));b.fillText('한양 쪽',mx(-10),mz(86));}
+  g.drawImage(mapBase,0,0);g.textAlign='center';
+  for(const s of SIGHTS){const x=mx(s.x),y=mz(s.z);g.fillStyle=s.found?'#1d1b17':'#b3312a';g.fillRect(x-7,y-7,14,14);g.fillStyle='#f4ead8';g.font='bold 10px serif';g.fillText('石',x,y+4);
+    g.fillStyle='#1d1b17';g.font='12px "Gowun Batang",serif';g.fillText(s.name,x,y-11);}
+  for(const st of STORIES){if(st.x==null||S.stories.has(st.id))continue;const x=mx(st.x),y=mz(st.z);g.strokeStyle='#6f8c86';g.lineWidth=2;g.fillStyle='rgba(246,240,226,.9)';g.beginPath();g.arc(x,y,7,0,Math.PI*2);g.fill();g.stroke();g.fillStyle='#6f8c86';g.font='bold 11px sans-serif';g.fillText('?',x,y+4);}
+  if(S.herbQuest===1)for(const hb of HERBS){if(S.herbs[hb.id])continue;g.strokeStyle='rgba(122,90,184,.7)';g.setLineDash([3,3]);g.lineWidth=1.5;g.beginPath();g.arc(mx(hb.x),mz(hb.z),14,0,Math.PI*2);g.stroke();g.setLineDash([]);
+    g.fillStyle='#5a3a8a';g.font='11px "Gowun Batang",serif';g.fillText(hb.name+' 근처',mx(hb.x),mz(hb.z)+26);}
+  const marks=new Set();if(S.quest===0||(S.quest===1&&SIGHTS.some(s=>s.found&&!s.told)))marks.add('painter');if(S.quest===2||(S.herbQuest===2&&!S.medGiven))marks.add('friend');
+  if(S.herbQuest===1&&HERBS.every(h=>S.herbs[h.id]))marks.add('grandma');
+  for(const n of npcs){g.fillStyle='#1d1b17';g.beginPath();g.arc(mx(n.pos.x),mz(n.pos.z),2.6,0,Math.PI*2);g.fill();}
+  for(const n of npcs){if(!marks.has(n.id))continue;const x=mx(n.pos.x),y=mz(n.pos.z);g.strokeStyle='#b3312a';g.lineWidth=2.2;g.fillStyle='rgba(246,240,226,.92)';g.beginPath();g.arc(x,y-9,8,0,Math.PI*2);g.fill();g.stroke();
+    g.fillStyle='#b3312a';g.font='bold 12px sans-serif';g.fillText('!',x,y-5);g.font='12px "Gowun Batang",serif';g.fillText(n.name,x,y-21);}
+  const px=mx(player.x),py=mz(player.z),fx=-Math.sin(player.yaw),fz=-Math.cos(player.yaw);
+  g.save();g.translate(px,py);g.rotate(Math.atan2(fz,fx)+Math.PI/2);g.fillStyle='#b3312a';g.strokeStyle='#f4ead8';g.lineWidth=1.5;g.beginPath();g.moveTo(0,-9);g.lineTo(6,6);g.lineTo(0,3);g.lineTo(-6,6);g.closePath();g.fill();g.stroke();g.restore();}
+
+/* ---------------- Bubbles ---------------- */
+function segBlocked(ax,az,bx,bz){const dx=bx-ax,dz=bz-az;for(const b of colliders){if(!(b.y1>2))continue;let t0=0,t1=1;
+    if(Math.abs(dx)<1e-9){if(ax<b.x0||ax>b.x1)continue;}else{let u0=(b.x0-ax)/dx,u1=(b.x1-ax)/dx;if(u0>u1){const t=u0;u0=u1;u1=t;}t0=Math.max(t0,u0);t1=Math.min(t1,u1);if(t0>t1)continue;}
+    if(Math.abs(dz)<1e-9){if(az<b.z0||az>b.z1)continue;}else{let u0=(b.z0-az)/dz,u1=(b.z1-az)/dz;if(u0>u1){const t=u0;u0=u1;u1=t;}t0=Math.max(t0,u0);t1=Math.min(t1,u1);if(t0>t1)continue;}return true;}return false;}
+const bv=new T.Vector3();
+function updateBubbles(dt){const W=innerWidth,H=innerHeight,show=state==='play';
+  for(const n of npcs){if(!n.bubEl){n.bubEl=document.createElement('div');n.bubEl.className='bub';$('bubbles').appendChild(n.bubEl);n.barkT=rr(1,9);n.barkOn=0;}
+    const d=Math.hypot(player.x-n.pos.x,player.z-n.pos.z);const can=show&&d<12&&!n.talking;
+    if(n.barkOn>0){n.barkOn-=dt;if(!can||n.barkOn<=0){n.bubEl.classList.remove('on');n.barkOn=0;n.barkT=rr(8,18);continue;}}
+    else{if(!can)continue;n.barkT-=dt;if(n.barkT>0)continue;if(segBlocked(player.x,player.z,n.pos.x,n.pos.z)){n.barkT=rr(2,4);continue;}
+      n.bubEl.textContent=pick(BARKS[n.id]);n.barkOn=3.4;n.bubEl.classList.add('on');for(const m of npcs)if(m!==n&&!(m.barkOn>0)&&Math.hypot(m.pos.x-n.pos.x,m.pos.z-n.pos.z)<2.5)m.barkT=Math.max(m.barkT||0,3.8);}
+    bv.set(n.pos.x,n.y+n.h+.42,n.pos.z).project(camera);const vis=bv.z<1&&Math.abs(bv.x)<1.1&&Math.abs(bv.y)<1.1&&!segBlocked(player.x,player.z,n.pos.x,n.pos.z);
+    n.bubEl.style.visibility=vis?'visible':'hidden';if(vis)n.bubEl.style.transform='translate('+((bv.x*.5+.5)*W).toFixed(1)+'px,'+((-bv.y*.5+.5)*H).toFixed(1)+'px) translate(-50%,-100%)';}}
+
+/* ---------------- Sketch ---------------- */
+function capture(){if(state!=='play')return;render();let url;try{url=cv.toDataURL('image/jpeg',.92);}catch(e){toast('<b>스케치</b>이 브라우저에서는 장면을 담을 수 없어요.',2600);return;}
+  const f=$('flash');f.classList.remove('go');void f.offsetWidth;f.classList.add('go');sfxShutter();const place=areaName(player.x,player.z);const img=new Image();
+  img.onload=()=>{const w=560,h=Math.round(w*img.height/img.width);const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
+    const n=++S.photoN;S.photos.push({src:c.toDataURL('image/jpeg',.74),place,n});if(S.photos.length>12)S.photos.shift();savePhotos();toast('<b>습작 No.'+n+'</b>'+place+'의 풍경을 스케치북에 담았어요. ('+S.photos.length+'/12)',3000);done('photo');};img.src=url;}
+
+/* ---------------- Input ---------------- */
+function relock(){if(IS_TOUCH||state!=='play')return;try{const p=cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{});}catch(e){}}
+document.addEventListener('keydown',e=>{if(state==='start')return;const k=e.key.toLowerCase();keys[e.code]=true;
+  if(state==='menu'){if(k==='j'||k==='escape'||e.code==='Tab'){e.preventDefault();if(!$('photoView').hidden)$('photoView').hidden=true;else closeJournal();}else if(/^[1-5]$/.test(k)&&$('photoView').hidden){jTab=TABS[+k-1];renderJournal();}return;}
+  if(state==='dialog'){if(k==='e'||k===' '||k==='enter'||k==='f'){e.preventDefault();advance();}else if(/^[1-4]$/.test(k))choose(+k-1);else if(k==='escape'&&dlg&&!(dlg.choices&&dlg.choices.length))closeDialog();return;}
+  if(state==='finale'){if(k==='enter'||k==='e'||k===' ')$('finaleBtn').click();return;}
+  if(k==='e'||k==='f'){e.preventDefault();interact();}if(k==='p')toggleFilter();if(k==='m')toggleMusic();if(k==='h')toggleHelp();if(k==='j')openJournal();if(e.code==='Tab'){e.preventDefault();openJournal('map');}if(k==='c')capture();if(k===' ')e.preventDefault();});
+document.addEventListener('keyup',e=>{keys[e.code]=false;});window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
+let dragging=false,lastX=0,lastY=0;
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;if(e.pointerType==='mouse'&&!document.pointerLockElement){relock();dragging=true;lastX=e.clientX;lastY=e.clientY;}});
+window.addEventListener('pointerup',e=>{if(e.pointerType==='mouse')dragging=false;});
+document.addEventListener('mousemove',e=>{if(state!=='play'&&state!=='dialog')return;if(document.pointerLockElement===cv)look(e.movementX,e.movementY);else if(dragging&&state==='play'){look(e.clientX-lastX,e.clientY-lastY);lastX=e.clientX;lastY=e.clientY;}});
+function look(dx,dy){player.yaw-=dx*.0022;player.pitch=clamp(player.pitch-dy*.0022,-1.35,1.35);}
+document.addEventListener('pointerlockchange',()=>{$('lockHint').hidden=!!document.pointerLockElement||IS_TOUCH||state!=='play';});
+const joy={id:null,x:0,y:0,cx:0,cy:0};const lookT={id:null,x:0,y:0};const joyEl=$('joy'),knob=$('knob');
+joyEl.addEventListener('pointerdown',e=>{e.preventDefault();joy.id=e.pointerId;const r=joyEl.getBoundingClientRect();joy.cx=r.left+r.width/2;joy.cy=r.top+r.height/2;joyEl.setPointerCapture(e.pointerId);moveJoy(e);});
+joyEl.addEventListener('pointermove',e=>{if(e.pointerId===joy.id)moveJoy(e);});
+function endJoy(e){if(e.pointerId!==joy.id)return;joy.id=null;joy.x=joy.y=0;knob.style.transform='';}joyEl.addEventListener('pointerup',endJoy);joyEl.addEventListener('pointercancel',endJoy);
+function moveJoy(e){let dx=e.clientX-joy.cx,dy=e.clientY-joy.cy;const m=Math.hypot(dx,dy),R=50;if(m>R){dx*=R/m;dy*=R/m;}joy.x=dx/R;joy.y=dy/R;knob.style.transform='translate('+dx+'px,'+dy+'px)';}
+cv.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'||state!=='play')return;lookT.id=e.pointerId;lookT.x=e.clientX;lookT.y=e.clientY;try{cv.setPointerCapture(e.pointerId);}catch(_){}});
+cv.addEventListener('pointermove',e=>{if(e.pointerId!==lookT.id)return;player.yaw-=(e.clientX-lookT.x)*.006;player.pitch=clamp(player.pitch-(e.clientY-lookT.y)*.006,-1.3,1.3);lookT.x=e.clientX;lookT.y=e.clientY;});
+cv.addEventListener('pointerup',e=>{if(e.pointerId===lookT.id)lookT.id=null;});cv.addEventListener('pointercancel',e=>{if(e.pointerId===lookT.id)lookT.id=null;});
+$('tAct').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();interact();});
+function toggleFilter(){S.filter=!S.filter;$('bFilter').setAttribute('aria-pressed',S.filter);toast(S.filter?'<b>수묵</b>먹과 한지 효과를 켰어요.':'<b>3D 원본</b>수묵 효과를 껐어요. P로 다시 켤 수 있어요.',2400);}
+function toggleMusic(){AU.on=!AU.on;$('bMusic').setAttribute('aria-pressed',AU.on);if(AU.master)AU.master.gain.setTargetAtTime(AU.on?.85:0,AU.ctx.currentTime,.1);}
+function toggleHelp(){const h=$('help');h.hidden=!h.hidden;$('bHelp').setAttribute('aria-pressed',!h.hidden);}
+$('bFilter').onclick=e=>{e.stopPropagation();toggleFilter();};
+$('bMusic').onclick=e=>{e.stopPropagation();initAudio();if(AU.ctx&&AU.ctx.state!=='running')AU.ctx.resume();toggleMusic();};
+$('bQual').onclick=e=>{e.stopPropagation();qi=(qi+2)%3;applyQuality();};
+$('bHelp').onclick=e=>{e.stopPropagation();toggleHelp();};
+$('bJournal').onclick=e=>{e.stopPropagation();openJournal();};$('bSketch').onclick=e=>{e.stopPropagation();capture();};
+$('go').onclick=()=>{initAudio();if(AU.ctx&&AU.ctx.state!=='running')AU.ctx.resume();$('start').hidden=true;$('hud').hidden=false;if(IS_TOUCH)$('touch').hidden=false;
+  state='play';player.x=12;player.z=76;player.yaw=-.02;player.pitch=.12;relock();renderQuestCard();$('lockHint').hidden=IS_TOUCH||!!document.pointerLockElement;
+  setTimeout(()=>toast(HAD_SAVE?'<b>다시 인왕산</b>지난 산행을 이어서 걸어요. 수첩(J)에서 진행 상황을 볼 수 있어요.':'<b>신미년 윤오월</b>앞에 자리를 편 노화가가 보이나요?',4400),600);};
+$('restart').onclick=()=>{try{localStorage.removeItem(SAVE_KEY);localStorage.removeItem(SAVE_KEY+'-p');}catch(e){}location.reload();};
+if(IS_TOUCH){$('startKeys').innerHTML='<dt>왼쪽 원</dt><dd>끌어서 걷기 (끝까지 밀면 달리기)</dd><dt>화면 오른쪽</dt><dd>끌어서 둘러보기</dd><dt>붉은 버튼</dt><dd>말 걸기 · 살펴보기</dd><dt>수첩 · 스케치</dt><dd>지도와 기록 · 장면 담기</dd>';}
+
+/* ---------------- Main loop ---------------- */
+const promptEl=$('prompt'),promptText=$('promptText'),tActEl=$('tAct');
+let last=performance.now(),time=0;
+function update(dt){time+=dt;
+  if(state==='play'){let f=0,s=0;
+    if(keys.KeyW||keys.ArrowUp)f+=1;if(keys.KeyS||keys.ArrowDown)f-=1;if(keys.KeyD)s+=1;if(keys.KeyA)s-=1;if(keys.ArrowLeft)player.yaw+=dt*1.9;if(keys.ArrowRight)player.yaw-=dt*1.9;
+    let run=keys.ShiftLeft||keys.ShiftRight;if(joy.id!==null){f+=-joy.y;s+=joy.x;if(Math.hypot(joy.x,joy.y)>.92)run=true;}
+    const m=Math.hypot(f,s);if(m>1){f/=m;s/=m;}const sp=run?6.4:3.4;
+    const fx=-Math.sin(player.yaw),fz=-Math.cos(player.yaw),rx=Math.cos(player.yaw),rz=-Math.sin(player.yaw);
+    const k=Math.min(1,dt*10);player.vx=lerp(player.vx,(fx*f+rx*s)*sp,k);player.vz=lerp(player.vz,(fz*f+rz*s)*sp,k);
+    const ox=player.x,oz=player.z;let nx=ox+player.vx*dt,nz=oz+player.vz*dt;
+    if(blockedMove(ox,oz,nx,nz)){if(!blockedMove(ox,oz,nx,oz)){nz=oz;}else if(!blockedMove(ox,oz,ox,nz)){nx=ox;}else{nx=ox;nz=oz;}}
+    const p={x:nx,z:nz};resolve(p,.32);if(blockedMove(ox,oz,p.x,p.z)){p.x=ox;p.z=oz;}player.x=p.x;player.z=p.z;
+    const spd=Math.hypot(player.x-ox,player.z-oz)/Math.max(dt,1e-4);
+    if(spd>.4){const prev=player.stepPh;player.stepPh+=dt*spd*2.2;if(Math.floor(prev/Math.PI)!==Math.floor(player.stepPh/Math.PI))sfxStep();}
+    player.bob=lerp(player.bob,spd>.4?1:0,dt*6);
+    // wall walk
+    let nearWall=false;for(const sg of segs){if(sg.r>.5&&segDist(player.x,player.z,sg.ax,sg.az,sg.bx,sg.bz)<3.5){nearWall=true;break;}}if(nearWall&&spd>.5){S.wallWalk+=spd*dt;if(S.wallWalk>40)done('wall');}
+    if(Math.hypot(player.x-BRIDGE.x,player.z-BRIDGE.z)<2.2)done('bridge');
+    for(const fl of falls){if(fl.seen)continue;for(let i=0;i<fl.pts.length;i+=4){if(Math.hypot(player.x-fl.pts[i][0],player.z-fl.pts[i][1])<16){fl.seen=true;break;}}}
+    if(falls.every(f=>f.seen))done('falls');
+    if(player.y>120&&player.pitch<-.18)done('look');
+  }else player.bob=lerp(player.bob,0,dt*6);
+  player.y=terrainH(player.x,player.z);
+  const eye=player.y+1.62;player.eye=lerp(player.eye,eye,Math.min(1,dt*12));if(Math.abs(player.eye-eye)>3)player.eye=eye;
+  if(state==='start'){camera.position.set(12+Math.sin(time*.1)*1.5,1.8+player.y,80+Math.sin(time*.07)*2);camera.rotation.set(.2+Math.sin(time*.09)*.02,-.03+Math.sin(time*.06)*.05,0);}
+  else{camera.position.set(player.x,player.eye+Math.sin(player.stepPh*2)*.03*player.bob,player.z);camera.rotation.set(player.pitch,player.yaw,0);}
+  if(dlg&&dlg.who.npc){const n=dlg.who.npc;const dx=n.pos.x-player.x,dz=n.pos.z-player.z;const a=Math.atan2(-dx,-dz);let d=a-player.yaw;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;player.yaw+=d*Math.min(1,dt*3);
+    const hy=n.y+n.h*.9-player.eye,dist=Math.hypot(dx,dz);player.pitch=lerp(player.pitch,Math.atan2(hy,dist),Math.min(1,dt*3));}
+  for(const n of npcs)n.update(dt,time);
+  // magpies hop about
+  for(const m of magpies){m.t-=dt;if(m.t<=0){m.t=rr(.6,2.2);m.tx=m.hx+rr(-4,4);m.tz=m.hz+rr(-4,4);}const dx=m.tx-m.x,dz=m.tz-m.z,d=Math.hypot(dx,dz);
+    if(d>.1){const st=Math.min(d,dt*2.2);m.x+=dx/d*st;m.z+=dz/d*st;m.hop+=dt*14;m.yaw=Math.atan2(dx,dz);}else m.hop=0;
+    m.g.position.set(m.x,terrainH(m.x,m.z)+Math.abs(Math.sin(m.hop))*.12,m.z);m.g.rotation.y=m.yaw;}
+  // mist
+  const fin=S.finaleT>=0;if(fin)S.finaleT+=dt;
+  const mistTarget=S.quest>=2?.12:1-foundN()*.13;S.mist=lerp(S.mist,mistTarget,Math.min(1,dt*(fin&&S.finaleT<8?.6:.25)));
+  postMat.uniforms.uMist.value=S.mist;postMat.uniforms.uTime.value=time;postMat.uniforms.uInk.value=1;
+  waterTex.offset.y=-time*.6;
+  for(const hb of HERBS)if(!hb.taken&&hb.mesh)hb.mesh.rotation.y=Math.sin(time*1.3+hb.x)*.2;
+  if(state==='play'){target=findTarget();let txt=target?promptFor(target):null;
+    if(txt){promptText.textContent=txt;promptEl.hidden=IS_TOUCH;}else promptEl.hidden=true;
+    if(IS_TOUCH){tActEl.classList.toggle('ready',!!target);tActEl.textContent=target?shortFor(target):'말 걸기';}
+    const near=Math.hypot(player.x-12,player.z-78)<4;const ya=((player.yaw+.02+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;$('caption').style.opacity=near&&Math.abs(ya)<.3&&player.pitch>.05&&time>8?'1':'0';}
+  else promptEl.hidden=true;
+  updateBubbles(dt);
+  if(saveT>0){saveT-=dt;if(saveT<=0)saveGame();}
+  if(state==='menu'&&jTab==='map'&&$('photoView').hidden){mapT-=dt;if(mapT<=0){mapT=.3;drawMap($('mapCv'));}}
+  typeTick(dt);updateAudio();}
+function render(){camera.updateMatrixWorld();
+  if(S.filter){postMat.uniforms.uInvProj.value.copy(camera.projectionMatrixInverse);postMat.uniforms.uCamWorld.value.copy(camera.matrixWorld);postMat.uniforms.uCamPos.value.copy(camera.position);
+    renderer.setRenderTarget(rt);renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.render(postScene,postCam);}
+  else{renderer.setRenderTarget(null);renderer.render(scene,camera);}}
+function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);render();}
+const HAD_SAVE=loadGame();$('restart').hidden=!HAD_SAVE;
+refreshPaper();applyQuality();renderQuestCard();
+requestAnimationFrame(t=>{last=t;frame(t);});
+setTimeout(()=>{const g=$('go');g.disabled=false;g.textContent=HAD_SAVE?'이어서 오르기':'산으로 들어가기';},300);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{tabletTexes.forEach(t=>t.redraw());refreshPaper();mapBase=null;});
+window.__ink={S,player,N,SIGHTS,HERBS,STORIES,openJournal,capture,runFinale,sightDialog,openDialog,DLG,progress,setState:s=>{state=s;}};
+})();
+</script>
+
+</body>
+</html>
